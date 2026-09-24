@@ -11,7 +11,7 @@
   />
   <div class="mb-2">
     <input id="expiration" class="form-control" type="text" />
-    <div class="form-text">Expiration date</div>
+    <div class="form-text">{{ .L.T "expirationPicker.date" }}</div>
   </div>
 </template>
 
@@ -20,6 +20,7 @@
   // to export values like a proper JS module, so we import the whole JS file,
   // which populates window.datepicker.
   import "/third-party/js-datepicker@5.18.0/js-datepicker.js";
+  import { t } from "/js/lib/i18n.js";
 
   (function () {
     const template = document.querySelector("#expiration-picker-template");
@@ -69,28 +70,47 @@
             expirationInput: this.shadowRoot.getElementById("expiration"),
           };
 
+          const minDate = tomorrow();
+          this._maxDate = this._parseMaxAttribute();
+          // A cap of just a day or two can put the server-computed max date
+          // right at (or, with clock/latency skew, just before) tomorrow;
+          // never let it fall before the picker's minimum selectable date.
+          if (this._maxDate && this._maxDate < minDate) {
+            this._maxDate = minDate;
+          }
+
           let initialExpiration = null;
           if (this.getAttribute("value")) {
             initialExpiration = new Date(this.getAttribute("value"));
           } else {
             initialExpiration = this._defaultExpirationDate();
           }
-          this.picker = window.datepicker(this.elements.expirationInput, {
-            minDate: tomorrow(),
+          if (this._maxDate && initialExpiration > this._maxDate) {
+            initialExpiration = this._maxDate;
+          }
+          const datepickerOptions = {
+            minDate,
             dateSelected: initialExpiration,
             formatter: (input, date) => {
               input.value = formatDate(date);
             },
-          });
+          };
+          if (this._maxDate) {
+            datepickerOptions.maxDate = this._maxDate;
+          }
+          this.picker = window.datepicker(
+            this.elements.expirationInput,
+            datepickerOptions,
+          );
 
           this.elements.expirationInput.addEventListener("change", (evt) => {
             const newDate = parseDate(evt.target.value);
-            if (newDate) {
+            if (newDate && (!this._maxDate || newDate <= this._maxDate)) {
               this.picker.setDate(newDate);
               this.elements.expirationInput.setCustomValidity("");
             } else {
               this.elements.expirationInput.setCustomValidity(
-                "Date must be in YYYY-MM-DD format",
+                t("js.invalidDateFormat"),
               );
               this.elements.expirationInput.reportValidity();
             }
@@ -104,7 +124,7 @@
         }
 
         static get observedAttributes() {
-          return ["value", "disabled"];
+          return ["value", "disabled", "max"];
         }
 
         attributeChangedCallback(name, oldValue, newValue) {
@@ -115,7 +135,22 @@
             this._setVisibility(newValue === "true");
           } else if (name === "value") {
             this.picker.setDate(new Date(newValue));
+          } else if (name === "max") {
+            this._maxDate = this._parseMaxAttribute();
+            this.picker.setMax(this._maxDate ?? undefined);
           }
+        }
+
+        // _parseMaxAttribute reads the "max" attribute (an RFC 3339 timestamp,
+        // or absent/empty for no cap) into a Date, or null when there's no
+        // cap.
+        _parseMaxAttribute() {
+          const raw = this.getAttribute("max");
+          if (!raw) {
+            return null;
+          }
+          const parsed = new Date(raw);
+          return isNaN(parsed) ? null : parsed;
         }
 
         get value() {

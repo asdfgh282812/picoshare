@@ -1,7 +1,7 @@
 {{ define "script-tags" }}
   <script type="module" nonce="{{ .CspNonce }}">
     import { guestLinkNew } from "/js/controllers/guestLinks.js";
-    import { showElement, hideElement } from "/js/lib/bulma.js";
+    import { showElement, hideElement } from "/js/lib/visibility.js";
     import { enableElement, disableElement } from "/js/lib/html.js";
 
     const labelInput = document.getElementById("label");
@@ -73,22 +73,25 @@
 {{ end }}
 
 {{ define "content" }}
-  <h1 class="h1">Create Guest Link</h1>
+  <h1 class="h1">{{ .L.T "guestLinkCreate.heading" }}</h1>
 
   <form id="create-guest-link-form">
     <div class="mb-4">
-      <label class="form-label">Label <i>(optional)</i></label>
+      <label class="form-label"
+        >{{ .L.T "guestLinkCreate.label" }}
+        <i>{{ .L.T "common.optional" }}</i></label
+      >
       <input
         id="label"
         class="form-control"
         type="text"
-        placeholder="For Joe at ExampleCo"
+        placeholder="{{ .L.T "guestLinkCreate.labelPlaceholder" }}"
       />
-      <p class="form-text">Label is not visible to guests</p>
+      <p class="form-text">{{ .L.T "guestLinkCreate.labelHint" }}</p>
     </div>
 
     <div class="mb-4">
-      <label class="form-label">Guest Link Expires</label>
+      <label class="form-label">{{ .L.T "guestLinkCreate.urlExpires" }}</label>
       <select id="expiration-select" class="form-select">
         {{ range .ExpirationOptions }}
           <option
@@ -102,21 +105,25 @@
     </div>
 
     <div class="mb-4">
-      <label class="form-label">Guest Files Expire</label>
+      <label class="form-label">{{ .L.T "guestLinkCreate.filesExpire" }}</label>
       <select id="file-expiration-select" class="form-select">
+        {{ $l := .L }}
         {{ range .FileLifetimeOptions }}
           <option
             value="{{ formatLifetime .FileLifetime }}"
             {{ if .IsDefault }}selected{{ end }}
           >
-            {{ .FileLifetime.FriendlyName }}
+            {{ friendlyLifetime .FileLifetime $l }}
           </option>
         {{ end }}
       </select>
     </div>
 
     <div class="mb-4">
-      <label class="form-label">Max file size <i>(optional)</i></label>
+      <label class="form-label"
+        >{{ .L.T "guestLinkCreate.maxFileSize" }}
+        <i>{{ .L.T "common.optional" }}</i></label
+      >
       <div class="input-group">
         <input
           id="max-file-size"
@@ -125,12 +132,15 @@
           min="1"
           placeholder="40"
         />
-        <span class="input-group-text">MB</span>
+        <span class="input-group-text">{{ .L.T "guestLinkCreate.mb" }}</span>
       </div>
     </div>
 
     <div class="mb-4">
-      <label class="form-label">Upload limit <i>(optional)</i></label>
+      <label class="form-label"
+        >{{ .L.T "guestLinkCreate.uploadLimit" }}
+        <i>{{ .L.T "common.optional" }}</i></label
+      >
       <div class="input-group">
         <input
           id="file-upload-limit"
@@ -139,12 +149,16 @@
           min="1"
           placeholder="5"
         />
-        <span class="input-group-text">file uploads</span>
+        <span class="input-group-text"
+          >{{ .L.T "guestLinkCreate.fileUploadsUnit" }}</span
+        >
       </div>
     </div>
 
     <div>
-      <button type="submit" class="btn btn-primary">Create</button>
+      <button type="submit" class="btn btn-primary">
+        {{ .L.T "common.create" }}
+      </button>
     </div>
   </form>
 
@@ -158,10 +172,16 @@
       role="alert"
     >
       <div>
-        <strong>Error</strong>
-        <div id="error-message" class="mt-1">Placeholder error.</div>
+        <strong>{{ .L.T "common.error" }}</strong>
+        <div id="error-message" class="mt-1">
+          {{ .L.T "common.placeholderError" }}
+        </div>
       </div>
-      <button class="btn-close" type="button" aria-label="Close"></button>
+      <button
+        class="btn-close"
+        type="button"
+        aria-label="{{ .L.T "common.close" }}"
+      ></button>
     </div>
   </div>
 {{ end }}

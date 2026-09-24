@@ -18,9 +18,15 @@ type (
 	}
 
 	UploadMetadata struct {
-		ID            EntryID
-		Filename      Filename
-		Note          FileNote
+		ID       EntryID
+		Filename Filename
+		Note     FileNote
+		// OwnerID is the user who uploaded the entry. It's empty for entries
+		// uploaded before PicoShare supported multiple users.
+		OwnerID UserID
+		// OwnerUsername is filled in alongside OwnerID when reading an entry from
+		// the store. It's empty when OwnerID is empty.
+		OwnerUsername Username
 		ContentType   ContentType
 		Uploaded      time.Time
 		Expires       ExpirationTime

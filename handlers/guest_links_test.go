@@ -228,7 +228,8 @@ func TestGuestLinksPost(t *testing.T) {
 		t.Run(tt.description, func(t *testing.T) {
 			dataStore := test_sqlite.New(t)
 			now := tt.currentTime
-			s := handlers.New(mockAuthenticator{}, &dataStore, nilSpaceCheckFunc, nilGarbageCollector, func() time.Time { return now })
+			admin, loginCookie := mustLoginAsUser(t, &dataStore, "admin", now)
+			s := handlers.New(handlers.Params{Store: &dataStore, CheckSpace: nilSpaceCheckFunc, Collector: nilGarbageCollector, Now: func() time.Time { return now }})
 
 			req := httptest.NewRequest(
 				http.MethodPost,
@@ -236,6 +237,7 @@ func TestGuestLinksPost(t *testing.T) {
 				strings.NewReader(tt.payload),
 			)
 			req.Header.Add("Content-Type", "text/json")
+			req.AddCookie(loginCookie)
 
 			rec := httptest.NewRecorder()
 			s.Router().ServeHTTP(rec, req)
@@ -265,8 +267,9 @@ func TestGuestLinksPost(t *testing.T) {
 				t.Fatalf("failed to retrieve guest link from datastore: %v", err)
 			}
 
-			// Copy the ID, which we can't predict in advance.
+			// Copy the ID and owner, which we can't predict in advance.
 			tt.expected.ID = picoshare.GuestLinkID(response.ID)
+			tt.expected.OwnerID = admin.ID
 
 			if got, want := gl, tt.expected; !reflect.DeepEqual(got, want) {
 				t.Fatalf("guestLink=%+v, want=%+v", got, want)
@@ -285,18 +288,23 @@ func makeGuestUploadCountLimit(i int) picoshare.GuestUploadCountLimit {
 
 func TestDeleteExistingGuestLink(t *testing.T) {
 	dataStore := test_sqlite.New(t)
+	now := mustParseTime("2025-05-25T00:00:00Z")
+	owner, loginCookie := mustLoginAsUser(t, &dataStore, "admin", now)
 	dataStore.InsertGuestLink(picoshare.GuestLink{
-		ID:         picoshare.GuestLinkID("abcdefgh23456789"),
-		Created:    mustParseTime("2025-05-25T00:00:00Z"),
-		UrlExpires: mustParseExpirationTime("2030-01-02T03:04:25Z"),
+		ID:              picoshare.GuestLinkID("abcdefgh23456789"),
+		OwnerID:         owner.ID,
+		Created:         now,
+		UrlExpires:      mustParseExpirationTime("2030-01-02T03:04:25Z"),
+		MaxFileLifetime: picoshare.FileLifetimeInfinite,
 	})
-	s := handlers.New(mockAuthenticator{}, &dataStore, nilSpaceCheckFunc, nilGarbageCollector, time.Now)
+	s := handlers.New(handlers.Params{Store: &dataStore, CheckSpace: nilSpaceCheckFunc, Collector: nilGarbageCollector, Now: time.Now})
 
 	req := httptest.NewRequest(
 		http.MethodDelete,
 		"/api/guest-links/abcdefgh23456789",
 		nil,
 	)
+	req.AddCookie(loginCookie)
 
 	rec := httptest.NewRecorder()
 	s.Router().ServeHTTP(rec, req)
@@ -314,33 +322,38 @@ func TestDeleteExistingGuestLink(t *testing.T) {
 
 func TestDeleteNonExistentGuestLink(t *testing.T) {
 	dataStore := test_sqlite.New(t)
-	s := handlers.New(mockAuthenticator{}, &dataStore, nilSpaceCheckFunc, nilGarbageCollector, time.Now)
+	loginCookie := mustLoginAsAdmin(t, &dataStore, time.Now())
+	s := handlers.New(handlers.Params{Store: &dataStore, CheckSpace: nilSpaceCheckFunc, Collector: nilGarbageCollector, Now: time.Now})
 
 	req := httptest.NewRequest(
 		http.MethodDelete,
 		"/api/guest-links/abcdefgh23456789",
 		nil,
 	)
+	req.AddCookie(loginCookie)
 
 	rec := httptest.NewRecorder()
 	s.Router().ServeHTTP(rec, req)
 	res := rec.Result()
 
-	// File doesn't exist, but there's no error for deleting a non-existent file.
-	if got, want := res.StatusCode, http.StatusOK; got != want {
+	// A missing guest link gets 404, the same response as one the requester
+	// doesn't own.
+	if got, want := res.StatusCode, http.StatusNotFound; got != want {
 		t.Fatalf("status=%d, want=%d", got, want)
 	}
 }
 
 func TestDeleteInvalidGuestLink(t *testing.T) {
 	dataStore := test_sqlite.New(t)
-	s := handlers.New(mockAuthenticator{}, &dataStore, nilSpaceCheckFunc, nilGarbageCollector, time.Now)
+	loginCookie := mustLoginAsAdmin(t, &dataStore, time.Now())
+	s := handlers.New(handlers.Params{Store: &dataStore, CheckSpace: nilSpaceCheckFunc, Collector: nilGarbageCollector, Now: time.Now})
 
 	req := httptest.NewRequest(
 		http.MethodDelete,
 		"/api/guest-links/i-am-an-invalid-link",
 		nil,
 	)
+	req.AddCookie(loginCookie)
 
 	rec := httptest.NewRecorder()
 	s.Router().ServeHTTP(rec, req)
@@ -473,16 +486,20 @@ func TestEnableDisableGuestLink(t *testing.T) {
 	} {
 		t.Run(tt.description, func(t *testing.T) {
 			dataStore := test_sqlite.New(t)
+			owner, loginCookie := mustLoginAsUser(t, &dataStore, "admin", time.Now())
 
 			if !tt.guestLinkInStore.Empty() {
+				tt.guestLinkInStore.OwnerID = owner.ID
+				tt.expected.OwnerID = owner.ID
 				if err := dataStore.InsertGuestLink(tt.guestLinkInStore); err != nil {
 					t.Fatalf("failed to insert dummy guest link: %v", err)
 				}
 			}
 
-			s := handlers.New(mockAuthenticator{}, &dataStore, nilSpaceCheckFunc, nilGarbageCollector, time.Now)
+			s := handlers.New(handlers.Params{Store: &dataStore, CheckSpace: nilSpaceCheckFunc, Collector: nilGarbageCollector, Now: time.Now})
 
 			req := httptest.NewRequest(http.MethodPut, tt.requestRoute, nil)
+			req.AddCookie(loginCookie)
 			rec := httptest.NewRecorder()
 			s.Router().ServeHTTP(rec, req)
 			res := rec.Result()

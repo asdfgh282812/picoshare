@@ -9,7 +9,7 @@
 {{ define "script-tags" }}
   <script type="module" nonce="{{ .CspNonce }}">
     import { deleteFile } from "/js/controllers/files.js";
-    import { showElement, hideElement } from "/js/lib/bulma.js";
+    import { showElement, hideElement } from "/js/lib/visibility.js";
 
     const deleteForm = document.getElementById("delete-form");
     const errorContainer = document.getElementById("error");
@@ -43,21 +43,26 @@
 {{ end }}
 
 {{ define "content" }}
-  <h1 class="h1">Delete File</h1>
+  <h1 class="h1">{{ .L.T "fileDelete.heading" }}</h1>
 
+  {{ $l := .L }}
   {{ with .Metadata }}
 
     <form id="delete-form">
       <input type="hidden" name="entry-id" value="{{ .ID }}" />
-      <p>Permanently delete <span class="filename">{{ .Filename }}</span>?</p>
+      <p>
+        {{ $l.T "fileDelete.confirmPrefix" }}
+        <span class="filename">{{ .Filename }}</span
+        >{{ $l.T "fileDelete.confirmSuffix" }}
+      </p>
 
       <div class="d-flex justify-content-end gap-2 my-4">
         <a class="btn btn-outline-primary" href="/files/{{ .ID }}/edit">
-          Cancel
+          {{ $l.T "common.cancel" }}
         </a>
         <button class="btn btn-danger" id="delete-btn" type="submit">
           <i class="fa-solid fa-trash me-2"></i>
-          Delete
+          {{ $l.T "common.delete" }}
         </button>
       </div>
     </form>
@@ -68,7 +73,7 @@
 
     <div id="error" class="d-none my-3">
       <div class="alert alert-danger" role="alert">
-        <div id="error-message">Placeholder error.</div>
+        <div id="error-message">{{ $l.T "common.placeholderError" }}</div>
       </div>
     </div>
   {{ end }}

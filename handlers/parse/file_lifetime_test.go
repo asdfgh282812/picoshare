@@ -51,7 +51,7 @@ func TestFileLifetime(t *testing.T) {
 				t.Fatalf("err=%v, want=%v", got, want)
 			}
 			if got, want := lt, tt.output; got != want {
-				t.Errorf("lifetime=%s, want=%s", got.FriendlyName(), want.FriendlyName())
+				t.Errorf("lifetime=%s, want=%s", got, want)
 			}
 		})
 	}

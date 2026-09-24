@@ -1,10 +1,27 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ .Lang }}">
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
     <title>{{ .Title }}</title>
+    <script nonce="{{ .CspNonce }}">
+      (function () {
+        try {
+          var stored = localStorage.getItem("ps_theme");
+          var theme =
+            stored === "light" || stored === "dark"
+              ? stored
+              : window.matchMedia &&
+                  window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light";
+          document.documentElement.setAttribute("data-bs-theme", theme);
+        } catch {
+          // Ignore storage/matchMedia errors (e.g., private browsing).
+        }
+      })();
+    </script>
     <link
       rel="stylesheet"
       type="text/css"
@@ -22,6 +39,22 @@
       src="/third-party/bootstrap@5.3.8/bootstrap.bundle.min.js"
       defer
     ></script>
+    <script type="application/json" id="i18n-messages">
+      {{ .L.Messages
+        "common.copiedLink"
+        "settings.saved"
+        "upload.pastePlaceholder"
+        "guestLinks.enable"
+        "guestLinks.disable"
+        "js.progressUploading"
+        "js.progressComplete"
+        "js.fileTooLarge"
+        "js.invalidDateFormat"
+        "js.guestLinkReactivated"
+        "js.guestLinkDisabled"
+        "js.connectionSucceeded"
+      | toJSON }}
+    </script>
     <script type="module" src="/js/navbar.js"></script>
     {{ block "script-tags" . }}{{ end }}
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />

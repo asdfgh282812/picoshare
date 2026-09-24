@@ -8,6 +8,16 @@
   --navbar-link-hover-color: #4b4b4b;
 }
 
+[data-bs-theme="dark"] {
+  --heading-color: #e9ecef;
+  --panel-bg: var(--bs-tertiary-bg);
+  --panel-footer-bg: var(--bs-secondary-bg);
+  --navbar-bg: var(--bs-tertiary-bg);
+  --navbar-brand-color: #dee2e6;
+  --navbar-link-color: #ced4da;
+  --navbar-link-hover-color: #f8f9fa;
+}
+
 body {
   font-family: "Karla", sans-serif;
 }
@@ -195,6 +205,10 @@ a {
     @media screen and (min-width: 768px) {
       padding-left: unset;
     }
+  }
+
+  #theme-toggle {
+    cursor: pointer;
   }
 }
 

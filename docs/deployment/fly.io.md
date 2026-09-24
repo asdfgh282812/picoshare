@@ -77,17 +77,9 @@ LITESTREAM_BUCKET="my-pico-bucket"
 LITESTREAM_ENDPOINT="s3.us-west-002.backblazeb2.com"
 ```
 
-## Set a passphrase
-
-Choose a passphrase to secure your instance.
-
-```bash
-flyctl secrets set PS_SHARED_SECRET="somesecretpassphrase"
-```
-
 ## Deploy
 
-Finally, it's time to deploy your app.
+Finally, it's time to deploy your app. After it's running, visit `https://<your-app-name>.fly.dev/setup` to configure single sign-on — see [Single sign-on setup](synology-sso.md).
 
 ```bash
 # Change this to the latest Docker image tag

@@ -42,10 +42,18 @@ func (s Server) entryPost() http.HandlerFunc {
 			return
 		}
 
+		user, _ := currentUser(r.Context())
+
+		if err := s.enforceMaxFileLifetimeForUser(user, expiration); err != nil {
+			log.Printf("expiration exceeds non-admin upload limit: %v", err)
+			http.Error(w, fmt.Sprintf("Invalid expiration: %v", err), http.StatusBadRequest)
+			return
+		}
+
 		// We're intentionally not limiting the size of the request because we
 		// assume that the uploading user is trusted, so they can upload files of
 		// any size they want.
-		id, err := s.insertFileFromRequest(r, expiration, picoshare.GuestLinkID(""))
+		id, err := s.insertFileFromRequest(r, expiration, picoshare.GuestLinkID(""), user.ID)
 		if err != nil {
 			if _, ok := errors.AsType[*dbError](err); ok {
 				log.Printf("failed to insert uploaded file into data store: %v", err)
@@ -70,11 +78,22 @@ func (s Server) entryPut() http.HandlerFunc {
 			return
 		}
 
+		if _, ok := s.manageableEntry(w, r, id); !ok {
+			return
+		}
+
 		metadata, err := s.entryMetadataFromRequest(r)
 
 		if err != nil {
 			log.Printf("error parsing entry edit request: %v", err)
 			http.Error(w, fmt.Sprintf("Bad request: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		user, _ := currentUser(r.Context())
+		if err := s.enforceMaxFileLifetimeForUser(user, metadata.Expires); err != nil {
+			log.Printf("expiration exceeds non-admin upload limit: %v", err)
+			http.Error(w, fmt.Sprintf("Invalid expiration: %v", err), http.StatusBadRequest)
 			return
 		}
 
@@ -128,7 +147,7 @@ func (s Server) guestEntryPost() http.HandlerFunc {
 			return
 		}
 
-		id, err := s.insertFileFromRequest(r, expiration, guestLinkID)
+		id, err := s.insertFileFromRequest(r, expiration, guestLinkID, picoshare.UserID{})
 		if err != nil {
 			if _, ok := errors.AsType[*dbError](err); ok {
 				log.Printf("failed to insert uploaded file into data store: %v", err)
@@ -202,7 +221,7 @@ func (s Server) entryMetadataFromRequest(r *http.Request) (picoshare.UploadMetad
 	}, nil
 }
 
-func (s Server) insertFileFromRequest(r *http.Request, expiration picoshare.ExpirationTime, guestLinkID picoshare.GuestLinkID) (picoshare.EntryID, error) {
+func (s Server) insertFileFromRequest(r *http.Request, expiration picoshare.ExpirationTime, guestLinkID picoshare.GuestLinkID, ownerID picoshare.UserID) (picoshare.EntryID, error) {
 	// ParseMultipartForm can go above the limit we set, so set a conservative RAM
 	// limit to avoid exhausting RAM on servers with limited resources.
 	multipartMaxMemory := mibToBytes(1)
@@ -262,6 +281,7 @@ func (s Server) insertFileFromRequest(r *http.Request, expiration picoshare.Expi
 			Filename:    filename,
 			ContentType: contentType,
 			Note:        note,
+			OwnerID:     ownerID,
 			GuestLink: picoshare.GuestLink{
 				ID: guestLinkID,
 			},
@@ -317,6 +337,32 @@ func (s Server) parseGuestExpirationFromRequest(r *http.Request, gl picoshare.Gu
 	return requestedExpiration, nil
 }
 
+// enforceMaxFileLifetimeForUser rejects expiration if it exceeds the
+// non-admin upload lifetime cap an administrator configured in settings.
+// Administrators are exempt, matching the same distinction
+// canBypassPassphrase draws between owners/admins and everyone else.
+func (s Server) enforceMaxFileLifetimeForUser(user picoshare.User, expiration picoshare.ExpirationTime) error {
+	if user.IsAdmin {
+		return nil
+	}
+
+	settings, err := s.store.ReadSettings()
+	if err != nil {
+		return fmt.Errorf("failed to read settings: %w", err)
+	}
+
+	if settings.MaxNonAdminFileLifetime.Equal(picoshare.FileLifetimeInfinite) {
+		return nil
+	}
+
+	maxPermittedExpiration := settings.MaxNonAdminFileLifetime.ExpirationFromTime(s.now())
+	if expiration == picoshare.NeverExpire || expiration.Time().After(maxPermittedExpiration.Time()) {
+		return fmt.Errorf("expiration time of %v exceeds the maximum permitted for non-admin users: %v", expiration, maxPermittedExpiration)
+	}
+
+	return nil
+}
+
 // mibToBytes converts an amount in MiB to an amount in bytes.
 func mibToBytes(i int64) int64 {
 	return i << 20
@@ -328,12 +374,16 @@ func clientAcceptsJson(r *http.Request) bool {
 }
 
 func baseURLFromRequest(r *http.Request) string {
-	var scheme string
-	// If we're running behind a proxy, assume that it's a TLS proxy.
-	if r.TLS != nil || os.Getenv("PS_BEHIND_PROXY") != "" {
+	scheme := "http"
+	if requestIsHTTPS(r) {
 		scheme = "https"
-	} else {
-		scheme = "http"
 	}
 	return fmt.Sprintf("%s://%s", scheme, r.Host)
+}
+
+// requestIsHTTPS reports whether the original client request used HTTPS. If
+// we're running behind a proxy, we assume that it's a TLS proxy, since
+// PS_BEHIND_PROXY is documented as such.
+func requestIsHTTPS(r *http.Request) bool {
+	return r.TLS != nil || os.Getenv("PS_BEHIND_PROXY") != ""
 }

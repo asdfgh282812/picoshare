@@ -29,6 +29,7 @@ func TestSettingsPut(t *testing.T) {
 			settings: picoshare.Settings{
 				DefaultFileLifetime:      picoshare.NewFileLifetimeInDays(7),
 				DownloadHistoryRetention: picoshare.KeepDownloadHistoryForever,
+				MaxNonAdminFileLifetime:  picoshare.FileLifetimeInfinite,
 			},
 			status: http.StatusOK,
 		},
@@ -41,6 +42,7 @@ func TestSettingsPut(t *testing.T) {
 			settings: picoshare.Settings{
 				DefaultFileLifetime:      picoshare.FileLifetimeInfinite,
 				DownloadHistoryRetention: picoshare.KeepDownloadHistoryForever,
+				MaxNonAdminFileLifetime:  picoshare.FileLifetimeInfinite,
 			},
 			status: http.StatusOK,
 		},
@@ -53,8 +55,33 @@ func TestSettingsPut(t *testing.T) {
 			settings: picoshare.Settings{
 				DefaultFileLifetime:      picoshare.NewFileLifetimeInDays(7),
 				DownloadHistoryRetention: mustCreateDownloadHistoryRetention(90),
+				MaxNonAdminFileLifetime:  picoshare.FileLifetimeInfinite,
 			},
 			status: http.StatusOK,
+		},
+		{
+			description: "valid request for 7-day non-admin upload limit",
+			payload: `{
+					"defaultExpirationDays": 7,
+					"keepDownloadHistoryForever": true,
+					"maxNonAdminFileLifetimeDays": 7
+				}`,
+			settings: picoshare.Settings{
+				DefaultFileLifetime:      picoshare.NewFileLifetimeInDays(7),
+				DownloadHistoryRetention: picoshare.KeepDownloadHistoryForever,
+				MaxNonAdminFileLifetime:  picoshare.NewFileLifetimeInDays(7),
+			},
+			status: http.StatusOK,
+		},
+		{
+			description: "rejects non-admin upload limit beyond the maximum",
+			payload: `{
+					"defaultExpirationDays": 7,
+					"keepDownloadHistoryForever": true,
+					"maxNonAdminFileLifetimeDays": 3651
+				}`,
+			settings: picoshare.Settings{},
+			status:   http.StatusBadRequest,
 		},
 		{
 			description: "rejects download history retention of zero days",
@@ -109,7 +136,8 @@ func TestSettingsPut(t *testing.T) {
 	} {
 		t.Run(tt.description, func(t *testing.T) {
 			dataStore := test_sqlite.New(t)
-			s := handlers.New(mockAuthenticator{}, &dataStore, nilSpaceCheckFunc, nilGarbageCollector, time.Now)
+			loginCookie := mustLoginAsAdmin(t, &dataStore, mustParseTime("2023-01-01T00:00:00Z"))
+			s := handlers.New(handlers.Params{Store: &dataStore, CheckSpace: nilSpaceCheckFunc, Collector: nilGarbageCollector, Now: time.Now})
 
 			req := httptest.NewRequest(
 				http.MethodPut,
@@ -117,6 +145,7 @@ func TestSettingsPut(t *testing.T) {
 				strings.NewReader(tt.payload),
 			)
 			req.Header.Add("Content-Type", "text/json")
+			req.AddCookie(loginCookie)
 
 			rec := httptest.NewRecorder()
 			s.Router().ServeHTTP(rec, req)

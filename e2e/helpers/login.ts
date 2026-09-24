@@ -1,11 +1,11 @@
 import { expect, type Page } from "../fixtures";
 
-export async function login(page: Page): Promise<void> {
+export async function login(page: Page, username = "alice"): Promise<void> {
   await page.goto("/");
   await page.getByRole("menuitem", { name: "Log In" }).click();
 
   await expect(page).toHaveURL("/login");
-  await page.locator("form input[type='password']").fill("dummypass");
-  await page.locator("form input[type='submit']").click();
+  await page.getByLabel("Username").fill(username);
+  await page.getByRole("button", { name: "Dev log in" }).click();
   await expect(page).toHaveURL("/");
 }

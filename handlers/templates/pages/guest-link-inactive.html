@@ -1,9 +1,9 @@
 {{ define "content" }}
-  <h1 class="h1">Guest Link Inactive</h1>
+  <h1 class="h1">{{ .L.T "guestLinkInactive.heading" }}</h1>
 
   <div class="alert alert-danger" role="alert">
-    <p>This PicoShare upload link is no longer active.</p>
+    <p>{{ .L.T "guestLinkInactive.message1" }}</p>
 
-    <p>Contact the PicoShare server owner to get a new link.</p>
+    <p>{{ .L.T "guestLinkInactive.message2" }}</p>
   </div>
 {{ end }}

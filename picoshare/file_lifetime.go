@@ -56,22 +56,6 @@ func (lt FileLifetime) String() string {
 	return lt.d.String()
 }
 
-func (lt FileLifetime) FriendlyName() string {
-	if lt == FileLifetimeInfinite {
-		return "Never"
-	}
-	value := lt.Days()
-	unit := "day"
-	if lt.IsYearBoundary() {
-		value /= daysPerYear
-		unit = "year"
-	}
-	if value > 1 {
-		unit += "s"
-	}
-	return fmt.Sprintf("%d %s", value, unit)
-}
-
 func (lt FileLifetime) LessThan(o FileLifetime) bool {
 	return lt.d == o.d
 }

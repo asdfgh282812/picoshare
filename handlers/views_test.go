@@ -10,19 +10,10 @@ import (
 	"time"
 
 	"github.com/mtlynch/picoshare/handlers"
+	"github.com/mtlynch/picoshare/store/test_sqlite"
 )
 
 var errMultipleResponseWrites = errors.New("response body written more than once")
-
-type unauthenticatedAuthenticator struct{}
-
-func (unauthenticatedAuthenticator) StartSession(http.ResponseWriter, *http.Request) {}
-
-func (unauthenticatedAuthenticator) ClearSession(http.ResponseWriter) {}
-
-func (unauthenticatedAuthenticator) Authenticate(*http.Request) bool {
-	return false
-}
 
 type singleWriteResponseWriter struct {
 	header     http.Header
@@ -59,13 +50,13 @@ func (w *singleWriteResponseWriter) Write(p []byte) (int, error) {
 }
 
 func TestIndexGetWritesRenderedTemplateAtomically(t *testing.T) {
-	s := handlers.New(
-		unauthenticatedAuthenticator{},
-		nil,
-		nilSpaceCheckFunc,
-		nilGarbageCollector,
-		time.Now,
-	)
+	dataStore := test_sqlite.New(t)
+	s := handlers.New(handlers.Params{
+		Store:      &dataStore,
+		CheckSpace: nilSpaceCheckFunc,
+		Collector:  nilGarbageCollector,
+		Now:        time.Now,
+	})
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := newSingleWriteResponseWriter()
 

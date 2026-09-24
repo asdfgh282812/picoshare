@@ -10,7 +10,7 @@
     }
 
     .file.accepting-drop {
-      background: #dbf5ff;
+      background: var(--bs-primary-bg-subtle);
       border-color: var(--bs-primary);
     }
 
@@ -55,12 +55,12 @@
       width: 100%;
       height: 0.75rem;
       border-radius: var(--bs-border-radius-pill);
-      background-color: var(--bs-gray-200);
+      background-color: var(--bs-secondary-bg);
       overflow: hidden;
     }
 
     .upload-progress-bar::-webkit-progress-bar {
-      background-color: var(--bs-gray-200);
+      background-color: var(--bs-secondary-bg);
       border-radius: var(--bs-border-radius-pill);
     }
 
@@ -79,8 +79,9 @@
 {{ define "script-tags" }}
   <script type="module" nonce="{{ .CspNonce }}">
     import { guestUploadFile, uploadFile } from "/js/controllers/files.js";
-    import { showElement, hideElement } from "/js/lib/bulma.js";
+    import { showElement, hideElement } from "/js/lib/visibility.js";
     import { sortClipboardItems } from "/js/lib/clipboard.js";
+    import { t } from "/js/lib/i18n.js";
 
     const uploadEl = document.querySelector(".file");
     const resultEl = document.getElementById("upload-result");
@@ -144,9 +145,9 @@
       progressBarFill.value = percentageValue;
       progressBarFill.setAttribute("aria-valuenow", percentageValue);
       progressBarFill.textContent = percentage;
-      document.title = "PicoShare ↑ " + percentage;
+      document.title = t("js.progressUploading").replace("%s", percentage);
       if (bytesUploaded === bytesTotal) {
-        document.title = "PicoShare - Complete";
+        document.title = t("js.progressComplete");
         showElement(progressSpinner);
       }
     }
@@ -160,8 +161,9 @@
         file.size > guestLinkMetadata.maxFileBytes
       ) {
         const friendlySize = `${guestLinkMetadata.maxFileBytes} bytes`;
-        document.getElementById("error-message").innerText =
-          `File is too large. Maximum upload size is ${friendlySize}.`;
+        document.getElementById("error-message").innerText = t(
+          "js.fileTooLarge",
+        ).replace("%s", friendlySize);
         showElement(errorContainer);
         return;
       }
@@ -200,7 +202,7 @@
           uploadLinksEl.addEventListener("link-copied", () => {
             document
               .querySelector("snackbar-notifications")
-              .addInfoMessage("Copied link");
+              .addInfoMessage(t("common.copiedLink"));
           });
           document.getElementById("result-links").append(uploadLinksEl);
           showElement(resultEl);
@@ -223,7 +225,7 @@
     }
 
     function resetPasteInstructions() {
-      pasteEl.value = "Or paste something here";
+      pasteEl.value = t("upload.pastePlaceholder");
     }
 
     document.querySelector(".file-input").addEventListener("change", (evt) => {
@@ -340,11 +342,12 @@
 {{ define "custom-elements" }}
   {{ template "expiration-picker.html" . }}
   {{ template "upload-link-box.html" . }}
+  {{ template "qr-code-box.html" . }}
   {{ template "upload-links.html" . }}
 {{ end }}
 
 {{ define "content" }}
-  <h1 class="h1">Upload</h1>
+  <h1 class="h1">{{ .L.T "upload.heading" }}</h1>
 
   <div id="upload-form" class="form-panel">
     <div class="form-panel-body">
@@ -355,9 +358,9 @@
             <span class="file-icon">
               <i class="fa-solid fa-upload"></i>
             </span>
-            <span class="file-label"> Choose a file… </span>
+            <span class="file-label"> {{ .L.T "upload.chooseFile" }} </span>
           </span>
-          <span class="file-hint">or drag one here</span>
+          <span class="file-hint">{{ .L.T "upload.dragHint" }}</span>
         </label>
       </div>
 
@@ -369,7 +372,8 @@
         {{ if gt (len .ExpirationOptions) 0 }}
           <div class="expiration-container">
             <label class="form-label" for="expiration-select">
-              <i class="fa-solid fa-clock fa-fw label-icon"></i>Expiration
+              <i class="fa-solid fa-clock fa-fw label-icon"></i
+              >{{ .L.T "upload.expiration" }}
             </label>
             <select
               id="expiration-select"
@@ -389,29 +393,38 @@
             <expiration-picker
               id="expiration-picker"
               class="dependent-field d-none"
+              max="{{ formatExpiration .MaxExpirationDate }}"
             />
+            {{ if .HasMaxFileLifetimeCap }}
+              <div class="form-text">
+                {{ .L.T "upload.maxLifetimeHint" }}
+                {{ .MaxFileLifetimeName }}
+              </div>
+            {{ end }}
           </div>
         {{ end }}
 
         {{ if not .GuestLinkMetadata.ID }}
           <div class="mt-4">
             <label class="form-label" for="note">
-              <i class="fa-solid fa-note-sticky fa-fw label-icon"></i>Note
-              <i>(optional)</i>
+              <i class="fa-solid fa-note-sticky fa-fw label-icon"></i
+              >{{ .L.T "upload.note" }}
+              <i>{{ .L.T "common.optional" }}</i>
             </label>
             <input
               id="note"
               class="form-control"
               type="text"
-              placeholder="For Joe at ExampleCo"
+              placeholder="{{ .L.T "upload.notePlaceholder" }}"
               maxlength="{{ .MaxNoteLength }}"
             />
-            <div class="form-text">Note is only visible to you</div>
+            <div class="form-text">{{ .L.T "upload.noteHint" }}</div>
           </div>
           <div class="mt-4">
             <label class="form-label" for="download-passphrase">
-              <i class="fa-solid fa-lock fa-fw label-icon"></i>Passphrase
-              <i>(optional)</i>
+              <i class="fa-solid fa-lock fa-fw label-icon"></i
+              >{{ .L.T "upload.passphrase" }}
+              <i>{{ .L.T "common.optional" }}</i>
             </label>
             <input
               id="download-passphrase"
@@ -421,7 +434,7 @@
               maxlength="{{ .MaxPassphraseLength }}"
             />
             <div class="form-text">
-              If set, guest users must enter this passphrase to download.
+              {{ .L.T "upload.passphraseHint" }}
             </div>
           </div>
         {{ end }}
@@ -435,7 +448,7 @@
       class="upload-progress-bar rounded-pill"
       value="0"
       max="100"
-      aria-label="Upload progress"
+      aria-label="{{ .L.T "upload.progressAriaLabel" }}"
       aria-valuenow="0"
     >
       0%
@@ -444,7 +457,7 @@
 
   <div id="progress-spinner" class="d-none">
     <div class="alert alert-primary" role="alert">
-      File uploaded! Processing...
+      {{ .L.T "upload.processing" }}
     </div>
 
     <div class="fa-3x">
@@ -454,24 +467,26 @@
 
   <div id="upload-result" class="d-none">
     <div class="alert alert-primary" role="alert">
-      <div class="message-body">Upload complete!</div>
+      <div class="message-body">{{ .L.T "upload.complete" }}</div>
     </div>
 
     <div id="result-links"></div>
 
     <div class="d-flex flex-wrap gap-2 my-4">
       {{ if not .GuestLinkMetadata.ID }}
-        <a id="edit-btn" class="btn btn-outline-primary">Edit</a>
+        <a id="edit-btn" class="btn btn-outline-primary"
+          >{{ .L.T "common.edit" }}</a
+        >
       {{ end }}
       <button id="upload-another-btn" class="btn btn-success">
-        Upload Another
+        {{ .L.T "upload.uploadAnother" }}
       </button>
     </div>
   </div>
 
   <div id="error" class="d-none my-3">
     <div class="alert alert-danger" role="alert">
-      <div id="error-message">Placeholder error.</div>
+      <div id="error-message">{{ .L.T "common.placeholderError" }}</div>
     </div>
   </div>
 {{ end }}

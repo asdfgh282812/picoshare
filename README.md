@@ -21,15 +21,17 @@ There are a million services for sharing files, but none of them are quite like 
 - **Direct download links**: PicoShare gives you a direct download link you can share with anyone. They can view or download the file with no ads or signups.
 - **No file restrictions**: Unlike sites like imgur, Vimeo, or SoundCloud that only allow you to share specific types of files, PicoShare lets you share any file of any size.
 - **No resizing/re-encoding**: If you upload media like images, video, or audio, PicoShare never forces you to wait on re-encoding. You get a direct download link as soon as you upload the file, and PicoShare never resizes or re-encodes your file.
+- **Multiple languages**: PicoShare's interface is available in English and Traditional Chinese (繁體中文). Anyone can switch languages from the navbar, and administrators can set a site-wide default.
 
 ## Run PicoShare
 
 ### From source
 
 ```bash
-PS_SHARED_SECRET=somesecretpass PORT=4001 \
-  go run cmd/picoshare/main.go
+PORT=4001 go run cmd/picoshare/main.go
 ```
+
+The first time PicoShare starts without a configured identity provider, it prints a one-time setup token to the log. Visit `/setup` and follow the instructions to connect PicoShare to a Synology SSO Server or any other standards-compliant OpenID Connect identity provider. See [Single sign-on setup](docs/deployment/synology-sso.md) for details.
 
 ### From Docker
 
@@ -38,7 +40,6 @@ To run PicoShare within a Docker container, mount a volume from your local syste
 ```bash
 docker run \
   --env "PORT=4001" \
-  --env "PS_SHARED_SECRET=somesecretpass" \
   --publish 4001:4001/tcp \
   --volume "${PWD}/data:/data" \
   --name picoshare \
@@ -53,7 +54,6 @@ You can kill the container and start it later, and PicoShare will restore your d
 
 ```bash
 PORT=4001
-PS_SHARED_SECRET="somesecretpass"
 LITESTREAM_BUCKET=YOUR-LITESTREAM-BUCKET
 LITESTREAM_ENDPOINT=YOUR-LITESTREAM-ENDPOINT
 LITESTREAM_ACCESS_KEY_ID=YOUR-ACCESS-ID
@@ -62,7 +62,6 @@ LITESTREAM_SECRET_ACCESS_KEY=YOUR-SECRET-ACCESS-KEY
 docker run \
   --publish "${PORT}:${PORT}/tcp" \
   --env "PORT=${PORT}" \
-  --env "PS_SHARED_SECRET=${PS_SHARED_SECRET}" \
   --env "LITESTREAM_ACCESS_KEY_ID=${LITESTREAM_ACCESS_KEY_ID}" \
   --env "LITESTREAM_SECRET_ACCESS_KEY=${LITESTREAM_SECRET_ACCESS_KEY}" \
   --env "LITESTREAM_BUCKET=${LITESTREAM_BUCKET}" \
@@ -87,7 +86,6 @@ services:
     image: mtlynch/picoshare
     environment:
       - PORT=4001
-      - PS_SHARED_SECRET=dummypass # Change to any password
     ports:
       - 4001:4001
     command: -db /data/store.db
@@ -105,12 +103,12 @@ services:
 
 ### Environment variables
 
-| Environment Variable    | Meaning                                                                                                           |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `PORT`                  | TCP port on which to listen for HTTP connections (defaults to 4001).                                              |
-| `PS_BEHIND_PROXY`       | Set to `"true"` for better logging when PicoShare is running behind a reverse proxy.                              |
-| `PS_SHARED_SECRET`      | Specifies a passphrase for the admin user to log in to PicoShare. Required if `PS_SHARED_SECRET_FILE` is not set. |
-| `PS_SHARED_SECRET_FILE` | Path to a file containing the passphrase for the admin user. Required if `PS_SHARED_SECRET` is not set.           |
+| Environment Variable | Meaning                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------ |
+| `PORT`               | TCP port on which to listen for HTTP connections (defaults to 4001).                 |
+| `PS_BEHIND_PROXY`    | Set to `"true"` for better logging when PicoShare is running behind a reverse proxy. |
+
+PicoShare no longer reads a shared-secret environment variable. Configure single sign-on through the `/setup` page instead; see [Single sign-on setup](docs/deployment/synology-sso.md).
 
 ### Docker environment variables
 

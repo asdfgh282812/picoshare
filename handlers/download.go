@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -45,15 +46,50 @@ func (s Server) entryGet() http.HandlerFunc {
 			return
 		}
 		if !entry.DownloadPassphrase.Empty() {
-			// Prevent caches from serving a password-bypassing download after an
-			// administrator downloads this entry with their session cookie.
+			// Prevent caches from serving a password-bypassing download after the
+			// owner or an administrator downloads this entry with their session
+			// cookie.
 			w.Header().Set("Cache-Control", "no-store")
-			if !isAuthenticated(r.Context()) {
+			if !canBypassPassphrase(r.Context(), entry) {
 				http.Redirect(w, r, entryUnlockPath(entry.ID), http.StatusFound)
 				return
 			}
 		}
 		s.serveEntryContent(w, r, entry)
+	}
+}
+
+// entryPreviewGet serves an entry's raw content the same way entryGet does,
+// but without recording a download, so that rendering an inline preview
+// (image, video, or PDF) on the file-info page doesn't inflate the entry's
+// download count or history.
+func (s Server) entryPreviewGet() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := picoshare.EntryIDFromString(mux.Vars(r)["id"])
+		if err != nil {
+			log.Printf("error parsing ID: %v", err)
+			http.Error(w, fmt.Sprintf("bad entry ID: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		entry, err := s.store.GetEntryMetadata(id)
+		if _, ok := errors.AsType[store.EntryNotFoundError](err); ok {
+			http.Error(w, "entry not found", http.StatusNotFound)
+			return
+		} else if err != nil {
+			log.Printf("error retrieving entry with id %v: %v", id, err)
+			http.Error(w, "failed to retrieve entry", http.StatusInternalServerError)
+			return
+		}
+		if !entry.DownloadPassphrase.Empty() {
+			w.Header().Set("Cache-Control", "no-store")
+			if !canBypassPassphrase(r.Context(), entry) {
+				http.Error(w, "entry is passphrase-protected", http.StatusForbidden)
+				return
+			}
+		}
+
+		s.writeEntryContent(w, r, entry)
 	}
 }
 
@@ -77,10 +113,11 @@ func (s Server) entryUnlockGet() http.HandlerFunc {
 			return
 		}
 
-		// Prevent caches from serving a password-bypassing redirect after an
-		// administrator accesses this page with their session cookie.
+		// Prevent caches from serving a password-bypassing redirect after the
+		// owner or an administrator accesses this page with their session
+		// cookie.
 		w.Header().Set("Cache-Control", "no-store")
-		if entry.DownloadPassphrase.Empty() || isAuthenticated(r.Context()) {
+		if entry.DownloadPassphrase.Empty() || canBypassPassphrase(r.Context(), entry) {
 			http.Redirect(w, r, entryDownloadPath(entry.ID), http.StatusFound)
 			return
 		}
@@ -89,7 +126,7 @@ func (s Server) entryUnlockGet() http.HandlerFunc {
 			commonProps
 			IncorrectPassphrase bool
 		}{
-			commonProps:         makeCommonProps("PicoShare - Download", r.Context()),
+			commonProps:         makeCommonProps("title.download", r.Context()),
 			IncorrectPassphrase: false,
 		})
 	}
@@ -116,7 +153,7 @@ func (s Server) entryUnlockPost() http.HandlerFunc {
 			return
 		}
 
-		if entry.DownloadPassphrase.Empty() || isAuthenticated(r.Context()) {
+		if entry.DownloadPassphrase.Empty() || canBypassPassphrase(r.Context(), entry) {
 			http.Redirect(w, r, entryDownloadPath(entry.ID), http.StatusFound)
 			return
 		}
@@ -128,7 +165,7 @@ func (s Server) entryUnlockPost() http.HandlerFunc {
 				commonProps
 				IncorrectPassphrase bool
 			}{
-				commonProps:         makeCommonProps("PicoShare - Download", r.Context()),
+				commonProps:         makeCommonProps("title.download", r.Context()),
 				IncorrectPassphrase: true,
 			})
 			return
@@ -157,6 +194,14 @@ func parseEntryUnlockRequest(r *http.Request) (entryUnlockRequest, error) {
 	}, nil
 }
 
+// canBypassPassphrase reports whether the requester may skip a download
+// passphrase because they own the entry or administer PicoShare. Anyone
+// else, logged in or not, must know the passphrase.
+func canBypassPassphrase(ctx context.Context, entry picoshare.UploadMetadata) bool {
+	user, ok := currentUser(ctx)
+	return ok && user.CanManageEntry(entry)
+}
+
 func entryDownloadPath(id picoshare.EntryID) string {
 	return "/-" + id.String()
 }
@@ -166,6 +211,17 @@ func entryUnlockPath(id picoshare.EntryID) string {
 }
 
 func (s Server) serveEntryContent(w http.ResponseWriter, r *http.Request, entry picoshare.UploadMetadata) {
+	s.writeEntryContent(w, r, entry)
+
+	if err := recordDownload(s.store, entry.ID, s.now(), r.RemoteAddr, r.Header.Get("User-Agent")); err != nil {
+		log.Printf("failed to record download of file %s: %v", entry.ID.String(), err)
+	}
+}
+
+// writeEntryContent writes entry's raw bytes to w. Callers that count this as
+// a download must call recordDownload themselves; entryPreviewGet
+// deliberately doesn't.
+func (s Server) writeEntryContent(w http.ResponseWriter, r *http.Request, entry picoshare.UploadMetadata) {
 	// Serve response in a sandbox so that if a user uploads JavaScript, it
 	// doesn't run in the same domain as the server.
 	w.Header().Set("Content-Security-Policy", "sandbox")
@@ -190,10 +246,6 @@ func (s Server) serveEntryContent(w http.ResponseWriter, r *http.Request, entry 
 	}
 
 	http.ServeContent(w, r, entry.Filename.String(), entry.Uploaded, entryFile)
-
-	if err := recordDownload(s.store, entry.ID, s.now(), r.RemoteAddr, r.Header.Get("User-Agent")); err != nil {
-		log.Printf("failed to record download of file %s: %v", entry.ID.String(), err)
-	}
 }
 
 func inferContentTypeFromFilename(f picoshare.Filename) (picoshare.ContentType, error) {
