@@ -8,6 +8,7 @@ COPY ./cmd /app/cmd
 COPY ./dev-scripts /app/dev-scripts
 COPY ./garbagecollect /app/garbagecollect
 COPY ./handlers /app/handlers
+COPY ./i18n /app/i18n
 COPY ./picoshare /app/picoshare
 COPY ./random /app/random
 COPY ./space /app/space

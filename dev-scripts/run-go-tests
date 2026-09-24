@@ -90,12 +90,17 @@ if [[ "${gci_version_output:-}" != "gci version ${GCI_VERSION#v}" ]]; then
   CGO_ENABLED=0 go install "github.com/daixiang0/gci@${GCI_VERSION}"
 fi
 readonly GCI_PATH
+# gci treats a non-TTY stdin (the norm in CI, but not always in an
+# interactive-ish local shell) as another file to format, and errors out
+# trying to parse an empty file as Go source. Redirect from /dev/null, a
+# character device, so gci always skips stdin and only processes the given
+# paths.
 GCI_DIFF=$("${GCI_PATH}" diff \
   --skip-generated \
   --section standard \
   --section default \
   --section "prefix(github.com/mtlynch/picoshare)" \
-  "${GO_PACKAGE_DIRS[@]}")
+  "${GO_PACKAGE_DIRS[@]}" < /dev/null)
 readonly GCI_DIFF
 if [[ -n "${GCI_DIFF}" ]]; then
   echo "${GCI_DIFF}"
