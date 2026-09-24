@@ -13,14 +13,16 @@ const settingsRowID = 1
 func (s Store) ReadSettings() (picoshare.Settings, error) {
 	var expirationInDays uint16
 	var retentionDays sql.NullInt16
+	var defaultLanguageRaw sql.NullString
 	if err := s.db.QueryRow(`
    SELECT
    	default_expiration_in_days,
-   	download_history_retention_days
+   	download_history_retention_days,
+   	default_language
    FROM
    	settings
    WHERE
-   	id = :row_id`, sql.Named("row_id", settingsRowID)).Scan(&expirationInDays, &retentionDays); err != nil {
+   	id = :row_id`, sql.Named("row_id", settingsRowID)).Scan(&expirationInDays, &retentionDays, &defaultLanguageRaw); err != nil {
 		if err == sql.ErrNoRows {
 			return picoshare.Settings{}, nil
 		}
@@ -35,9 +37,18 @@ func (s Store) ReadSettings() (picoshare.Settings, error) {
 		}
 	}
 
+	defaultLanguage := picoshare.SiteDefaultLanguageAuto
+	if defaultLanguageRaw.Valid {
+		var err error
+		if defaultLanguage, err = picoshare.NewSiteDefaultLanguage(defaultLanguageRaw.String); err != nil {
+			return picoshare.Settings{}, err
+		}
+	}
+
 	return picoshare.Settings{
 		DefaultFileLifetime:      picoshare.NewFileLifetimeInDays(expirationInDays),
 		DownloadHistoryRetention: retention,
+		DefaultLanguage:          defaultLanguage,
 	}, nil
 }
 
@@ -48,16 +59,22 @@ func (s Store) UpdateSettings(settings picoshare.Settings) error {
 	if !settings.DownloadHistoryRetention.IsForever() {
 		retentionDays = sql.NullInt16{Int16: int16(settings.DownloadHistoryRetention.Days()), Valid: true}
 	}
+	var defaultLanguage sql.NullString
+	if !settings.DefaultLanguage.IsAuto() {
+		defaultLanguage = sql.NullString{String: settings.DefaultLanguage.String(), Valid: true}
+	}
 	if _, err := s.db.Exec(`
    UPDATE
    	settings
    SET
    	default_expiration_in_days = :expiration,
-   	download_history_retention_days = :retention_days
+   	download_history_retention_days = :retention_days,
+   	default_language = :default_language
    WHERE
    	id = :row_id`,
 		sql.Named("expiration", expirationInDays),
 		sql.Named("retention_days", retentionDays),
+		sql.Named("default_language", defaultLanguage),
 		sql.Named("row_id", settingsRowID)); err != nil {
 		return err
 	}

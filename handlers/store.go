@@ -34,6 +34,7 @@ type Store interface {
 	InsertSession(picoshare.Session) error
 	GetSessionUser(picoshare.SessionTokenHash) (picoshare.User, error)
 	DeleteSession(picoshare.SessionTokenHash) error
+	UpdateUserLanguage(picoshare.UserID, picoshare.Language) error
 
 	// OIDC settings.
 	ReadOIDCSettings() (picoshare.OIDCSettings, error)

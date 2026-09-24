@@ -98,13 +98,16 @@
 {{ end }}
 
 {{ define "content" }}
-  <h1 class="h1">Edit File</h1>
+  <h1 class="h1">{{ .L.T "fileEdit.heading" }}</h1>
 
+  {{ $l := .L }}
   {{ with .Metadata }}
     <form id="edit-form" class="form-panel" data-entry-id="{{ .ID }}">
       <div class="form-panel-body">
         <div class="mb-4">
-          <label class="form-label" for="filename">Filename</label>
+          <label class="form-label" for="filename"
+            >{{ $l.T "fileEdit.filename" }}</label
+          >
           <input
             id="filename"
             class="form-control form-control-lg"
@@ -116,7 +119,8 @@
 
         <fieldset class="mb-4">
           <legend class="form-label">
-            <i class="fa-solid fa-clock fa-fw label-icon"></i>Expiration
+            <i class="fa-solid fa-clock fa-fw label-icon"></i
+            >{{ $l.T "fileEdit.expiration" }}
           </legend>
 
           <div class="form-check">
@@ -127,14 +131,14 @@
               {{ if not (isNeverExpire .Expires) }}checked{{ end }}
             />
             <label class="form-check-label" for="expire-checkbox">
-              Delete after expiration
+              {{ $l.T "fileEdit.deleteAfterExpiration" }}
             </label>
           </div>
           <expiration-picker
             id="expiration-picker"
             class="dependent-field"
             {{ if not (isNeverExpire .Expires) }}
-              value="{{ formatExpiration .Expires }}"
+              value="{{ formatExpiration .Expires $l }}"
             {{ else }}
               disabled
             {{ end }}
@@ -143,7 +147,8 @@
 
         <fieldset class="mb-4">
           <legend class="form-label">
-            <i class="fa-solid fa-lock fa-fw label-icon"></i>Passphrase
+            <i class="fa-solid fa-lock fa-fw label-icon"></i
+            >{{ $l.T "fileEdit.passphrase" }}
           </legend>
 
           <div class="form-check">
@@ -154,7 +159,7 @@
               {{ if not .DownloadPassphrase.Empty }}checked{{ end }}
             />
             <label class="form-check-label" for="require-passphrase-checkbox">
-              Require guests to enter a passphrase before downloading
+              {{ $l.T "fileEdit.requirePassphrase" }}
             </label>
           </div>
           <div
@@ -171,7 +176,7 @@
               type="text"
               autocomplete="off"
               maxlength="{{ $.MaxPassphraseLength }}"
-              placeholder="Enter a passphrase"
+              placeholder="{{ $l.T "fileEdit.passphrasePlaceholder" }}"
               {{ if not .DownloadPassphrase.Empty }}
                 value="{{ .DownloadPassphrase }}" required
               {{ end }}
@@ -181,7 +186,8 @@
 
         <div>
           <label class="form-label" for="note">
-            <i class="fa-solid fa-note-sticky fa-fw label-icon"></i>Note
+            <i class="fa-solid fa-note-sticky fa-fw label-icon"></i
+            >{{ $l.T "fileEdit.note" }}
           </label>
           <input
             id="note"
@@ -191,17 +197,17 @@
               value="{{ .Note }}"
             {{ end }}
           />
-          <div class="form-text">Note is only visible to you</div>
+          <div class="form-text">{{ $l.T "fileEdit.noteHint" }}</div>
         </div>
       </div>
 
       <div class="form-panel-footer">
         <button class="btn btn-outline-primary" id="cancel-btn" type="button">
-          Cancel
+          {{ $l.T "common.cancel" }}
         </button>
         <button class="btn btn-primary">
           <i class="fa-solid fa-floppy-disk me-2"></i>
-          Save
+          {{ $l.T "common.save" }}
         </button>
       </div>
     </form>
@@ -212,7 +218,7 @@
 
     <div id="error" class="d-none my-3">
       <div class="alert alert-danger" role="alert">
-        <div id="error-message">Placeholder error.</div>
+        <div id="error-message">{{ $l.T "common.placeholderError" }}</div>
       </div>
     </div>
 
@@ -223,7 +229,7 @@
         href="/files/{{ .ID }}/confirm-delete"
       >
         <i class="fa-solid fa-trash me-2"></i>
-        Delete
+        {{ $l.T "common.delete" }}
       </a>
     </section>
   {{ end }}

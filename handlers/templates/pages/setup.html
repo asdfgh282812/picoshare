@@ -3,6 +3,7 @@
     import { testConnection, saveSetup } from "/js/controllers/setup.js";
     import { showElement, hideElement } from "/js/lib/bulma.js";
     import { enableElement, disableElement } from "/js/lib/html.js";
+    import { t } from "/js/lib/i18n.js";
 
     const form = document.getElementById("setup-form");
     const errorContainer = document.getElementById("error");
@@ -36,8 +37,9 @@
     testBtn.addEventListener("click", () => {
       withButtonsDisabled(() => testConnection(readSettings()))
         .then(() => {
-          document.getElementById("success-message").innerText =
-            "Connection succeeded.";
+          document.getElementById("success-message").innerText = t(
+            "js.connectionSucceeded",
+          );
           showElement(successContainer);
         })
         .catch((error) => {
@@ -67,29 +69,22 @@
 {{ end }}
 
 {{ define "content" }}
-  <h1 class="h1">Set Up Single Sign-On</h1>
+  <h1 class="h1">{{ .L.T "setup.heading" }}</h1>
 
-  <p>
-    PicoShare only offers OpenID Connect single sign-on, such as
-    <a
-      href="https://kb.synology.com/en-uk/DSM/tutorial/set_up_oidc_for_dsm_in_sso_server"
-      >Synology SSO Server</a
-    >. Register PicoShare as an application in your identity provider first,
-    using the redirect URL below, then paste its details here.
-  </p>
+  <p>{{ .L.THTML "setup.intro" }}</p>
 
-  <p>
-    Find the setup token in PicoShare's server log (search for "setup token").
-  </p>
+  <p>{{ .L.T "setup.tokenHint" }}</p>
 
   <form id="setup-form">
     <fieldset class="border rounded p-3 mb-4">
       <legend class="float-none w-auto px-2 fs-6 mb-0">
-        Identity Provider
+        {{ .L.T "setup.identityProvider" }}
       </legend>
 
       <div class="mb-3">
-        <label class="form-label" for="setup-token">Setup token</label>
+        <label class="form-label" for="setup-token"
+          >{{ .L.T "setup.setupToken" }}</label
+        >
         <input
           class="form-control"
           id="setup-token"
@@ -100,7 +95,9 @@
       </div>
 
       <div class="mb-3">
-        <label class="form-label" for="issuer-url">Issuer URL</label>
+        <label class="form-label" for="issuer-url"
+          >{{ .L.T "setup.issuerUrl" }}</label
+        >
         <input
           class="form-control"
           id="issuer-url"
@@ -112,22 +109,25 @@
 
       <div class="mb-3">
         <label class="form-label" for="expected-issuer">
-          Expected issuer (optional)
+          {{ .L.T "setup.expectedIssuer" }}
         </label>
         <input class="form-control" id="expected-issuer" type="text" />
         <div class="form-text">
-          Only needed if a reverse proxy makes the issuer URL above unreachable
-          under its own name.
+          {{ .L.T "setup.expectedIssuerHint" }}
         </div>
       </div>
 
       <div class="mb-3">
-        <label class="form-label" for="client-id">Client ID</label>
+        <label class="form-label" for="client-id"
+          >{{ .L.T "setup.clientId" }}</label
+        >
         <input class="form-control" id="client-id" type="text" required />
       </div>
 
       <div class="mb-3">
-        <label class="form-label" for="client-secret">Client secret</label>
+        <label class="form-label" for="client-secret"
+          >{{ .L.T "setup.clientSecret" }}</label
+        >
         <input
           class="form-control"
           id="client-secret"
@@ -137,7 +137,9 @@
       </div>
 
       <div class="mb-3">
-        <label class="form-label" for="redirect-url">Redirect URL</label>
+        <label class="form-label" for="redirect-url"
+          >{{ .L.T "setup.redirectUrl" }}</label
+        >
         <input
           class="form-control"
           id="redirect-url"
@@ -146,13 +148,13 @@
           value="{{ .RedirectURL }}"
         />
         <div class="form-text">
-          Register this exact URL as the callback URL in your identity provider.
+          {{ .L.T "setup.redirectUrlHint" }}
         </div>
       </div>
 
       <div class="mb-3">
         <label class="form-label" for="ca-cert-pem">
-          CA certificate (optional)
+          {{ .L.T "setup.caCert" }}
         </label>
         <textarea
           class="form-control"
@@ -161,7 +163,7 @@
           placeholder="-----BEGIN CERTIFICATE-----"
         ></textarea>
         <div class="form-text">
-          Only needed if your identity provider uses a self-signed certificate.
+          {{ .L.T "setup.caCertHint" }}
         </div>
       </div>
     </fieldset>
@@ -172,17 +174,17 @@
         class="btn btn-secondary me-2"
         type="button"
       >
-        Test Connection
+        {{ .L.T "setup.testConnection" }}
       </button>
       <button id="save-btn" class="btn btn-primary" type="submit">
-        Save and Log In
+        {{ .L.T "setup.saveAndLogIn" }}
       </button>
     </div>
   </form>
 
   <div id="success" class="d-none my-3">
     <div class="alert alert-success" role="alert">
-      <div id="success-message">Placeholder success.</div>
+      <div id="success-message">{{ .L.T "common.placeholderError" }}</div>
     </div>
   </div>
 
@@ -192,10 +194,16 @@
       role="alert"
     >
       <div>
-        <strong>Error</strong>
-        <div id="error-message" class="mt-1">Placeholder error.</div>
+        <strong>{{ .L.T "common.error" }}</strong>
+        <div id="error-message" class="mt-1">
+          {{ .L.T "common.placeholderError" }}
+        </div>
       </div>
-      <button class="btn-close" type="button" aria-label="Close"></button>
+      <button
+        class="btn-close"
+        type="button"
+        aria-label="{{ .L.T "common.close" }}"
+      ></button>
     </div>
   </div>
 {{ end }}

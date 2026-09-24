@@ -1,5 +1,5 @@
 {{ define "content" }}
-  <h1 class="h1">Log In</h1>
+  <h1 class="h1">{{ .L.T "auth.heading" }}</h1>
 
   {{ if .LoginError }}
     <div id="error" class="my-3">
@@ -11,19 +11,18 @@
 
   {{ if .NeedsSetup }}
     <div class="alert alert-info" role="alert">
-      Single sign-on hasn't been configured yet.
-      <a href="/setup">Complete setup</a> to log in.
+      {{ .L.THTML "auth.needsSetupMessage" }}
     </div>
   {{ else }}
     <a class="btn btn-primary" role="menuitem" href="/oidc/login">
-      Log in with Synology
+      {{ .L.T "auth.logInWithSynology" }}
     </a>
   {{ end }}
 
   {{ if .DevLoginEnabled }}
     <div class="mt-4">
-      <h3>Dev login</h3>
-      <p>Development builds skip the identity provider entirely.</p>
+      <h3>{{ .L.T "auth.devLoginHeading" }}</h3>
+      <p>{{ .L.T "auth.devLoginHint" }}</p>
       <form
         id="dev-login-form"
         class="row row-cols-auto g-2 align-items-center"
@@ -32,7 +31,7 @@
       >
         <div class="col">
           <label class="visually-hidden" for="dev-login-username"
-            >Username</label
+            >{{ .L.T "auth.username" }}</label
           >
           <input
             class="form-control"
@@ -41,11 +40,15 @@
             type="text"
             required
             autofocus
-            placeholder="Username"
+            placeholder="{{ .L.T "auth.username" }}"
           />
         </div>
         <div class="col">
-          <input class="btn btn-secondary" type="submit" value="Dev log in" />
+          <input
+            class="btn btn-secondary"
+            type="submit"
+            value="{{ .L.T "auth.devLogIn" }}"
+          />
         </div>
       </form>
     </div>

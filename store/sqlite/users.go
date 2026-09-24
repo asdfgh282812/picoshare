@@ -84,7 +84,7 @@ func (s Store) RecordUserLogin(identity picoshare.UserIdentity) (picoshare.User,
 
 	user, err := userFromRow(tx.QueryRow(`
 	SELECT
-		id, oidc_subject, username, email, is_admin, creation_time, last_login_time
+		id, oidc_subject, username, email, is_admin, preferred_language, creation_time, last_login_time
 	FROM
 		users
 	WHERE
@@ -129,7 +129,7 @@ func claimOwnerlessRows(tx *sql.Tx, adminID int64) error {
 func (s Store) GetUsers() ([]picoshare.User, error) {
 	rows, err := s.db.Query(`
 	SELECT
-		id, oidc_subject, username, email, is_admin, creation_time, last_login_time
+		id, oidc_subject, username, email, is_admin, preferred_language, creation_time, last_login_time
 	FROM
 		users
 	ORDER BY
@@ -206,16 +206,38 @@ func (s Store) RevokeAdmin(id picoshare.UserID) error {
 	return store.LastAdminError{}
 }
 
+// UpdateUserLanguage sets the user's preferred interface language.
+func (s Store) UpdateUserLanguage(id picoshare.UserID, lang picoshare.Language) error {
+	res, err := s.db.Exec(`
+	UPDATE users
+	SET preferred_language = :language
+	WHERE id = :id`,
+		sql.Named("language", lang.String()),
+		sql.Named("id", id.Int64()))
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return store.UserNotFoundError{ID: id}
+	}
+	return nil
+}
+
 func userFromRow(row rowScanner) (picoshare.User, error) {
 	var id int64
 	var subjectRaw string
 	var usernameRaw string
 	var emailRaw *string
 	var isAdmin bool
+	var preferredLanguageRaw *string
 	var creationTimeRaw string
 	var lastLoginTimeRaw string
 
-	if err := row.Scan(&id, &subjectRaw, &usernameRaw, &emailRaw, &isAdmin, &creationTimeRaw, &lastLoginTimeRaw); err != nil {
+	if err := row.Scan(&id, &subjectRaw, &usernameRaw, &emailRaw, &isAdmin, &preferredLanguageRaw, &creationTimeRaw, &lastLoginTimeRaw); err != nil {
 		return picoshare.User{}, err
 	}
 
@@ -233,6 +255,12 @@ func userFromRow(row rowScanner) (picoshare.User, error) {
 			return picoshare.User{}, err
 		}
 	}
+	var preferredLanguage picoshare.Language
+	if preferredLanguageRaw != nil {
+		if preferredLanguage, err = picoshare.NewLanguage(*preferredLanguageRaw); err != nil {
+			return picoshare.User{}, err
+		}
+	}
 	created, err := parseDatetime(creationTimeRaw)
 	if err != nil {
 		return picoshare.User{}, err
@@ -243,13 +271,14 @@ func userFromRow(row rowScanner) (picoshare.User, error) {
 	}
 
 	return picoshare.User{
-		ID:        picoshare.UserIDFromInt64(id),
-		Subject:   subject,
-		Username:  username,
-		Email:     email,
-		IsAdmin:   isAdmin,
-		Created:   created,
-		LastLogin: lastLogin,
+		ID:                picoshare.UserIDFromInt64(id),
+		Subject:           subject,
+		Username:          username,
+		Email:             email,
+		IsAdmin:           isAdmin,
+		PreferredLanguage: preferredLanguage,
+		Created:           created,
+		LastLogin:         lastLogin,
 	}, nil
 }
 

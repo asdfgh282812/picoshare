@@ -36,7 +36,7 @@ func (s Server) oidcCallbackGet() http.HandlerFunc {
 		identity, err := s.identityProvider.Callback(w, r)
 		if err != nil {
 			log.Printf("OIDC login failed: %v", err)
-			props, propsErr := s.authPageProps(r.Context(), "Login failed. Please try again.")
+			props, propsErr := s.authPageProps(r.Context(), "auth.loginFailed")
 			if propsErr != nil {
 				log.Printf("failed to check setup status: %v", propsErr)
 				http.Error(w, "Failed to complete login", http.StatusInternalServerError)

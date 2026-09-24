@@ -92,7 +92,7 @@ func (s Server) entryUnlockGet() http.HandlerFunc {
 			commonProps
 			IncorrectPassphrase bool
 		}{
-			commonProps:         makeCommonProps("PicoShare - Download", r.Context()),
+			commonProps:         makeCommonProps("title.download", r.Context()),
 			IncorrectPassphrase: false,
 		})
 	}
@@ -131,7 +131,7 @@ func (s Server) entryUnlockPost() http.HandlerFunc {
 				commonProps
 				IncorrectPassphrase bool
 			}{
-				commonProps:         makeCommonProps("PicoShare - Download", r.Context()),
+				commonProps:         makeCommonProps("title.download", r.Context()),
 				IncorrectPassphrase: true,
 			})
 			return

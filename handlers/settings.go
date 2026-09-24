@@ -32,6 +32,7 @@ func settingsFromRequest(r *http.Request) (picoshare.Settings, error) {
 		DefaultNeverExpire           bool   `json:"defaultNeverExpire"`
 		DownloadHistoryRetentionDays uint16 `json:"downloadHistoryRetentionDays"`
 		KeepDownloadHistoryForever   bool   `json:"keepDownloadHistoryForever"`
+		DefaultLanguage              string `json:"defaultLanguage"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&payload)
 	if err != nil {
@@ -55,8 +56,14 @@ func settingsFromRequest(r *http.Request) (picoshare.Settings, error) {
 		}
 	}
 
+	defaultLanguage, err := picoshare.NewSiteDefaultLanguage(payload.DefaultLanguage)
+	if err != nil {
+		return picoshare.Settings{}, err
+	}
+
 	return picoshare.Settings{
 		DefaultFileLifetime:      defaultLifetime,
 		DownloadHistoryRetention: retention,
+		DefaultLanguage:          defaultLanguage,
 	}, nil
 }

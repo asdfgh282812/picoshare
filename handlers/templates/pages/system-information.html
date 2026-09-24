@@ -82,33 +82,32 @@
 
 {{ define "content" }}
   {{ $usagePercent := percentage .UsedBytes .TotalBytes }}
-  <h1 class="h1">System Information</h1>
+  <h1 class="h1">{{ .L.T "systemInfo.heading" }}</h1>
 
-  <h2>Disk Usage</h2>
+  <h2>{{ .L.T "systemInfo.diskUsage" }}</h2>
   <progress
     class="progress rounded-pill"
     value="{{ .UsedBytes }}"
     max="{{ .TotalBytes }}"
-    aria-label="Disk usage"
+    aria-label="{{ .L.T "systemInfo.diskUsageAriaLabel" }}"
   >
     {{ $usagePercent }}
   </progress>
 
   <ul>
     <li>
-      <strong>Server disk usage</strong>:
-      {{ formatDiskUsage .UsedBytes }}
-      ({{ $usagePercent }}) used of {{ formatDiskUsage .TotalBytes }} total
+      <strong>{{ .L.T "systemInfo.serverDiskUsage" }}</strong>:
+      {{ .L.T "systemInfo.serverDiskUsageDetail" (formatDiskUsage .UsedBytes) $usagePercent (formatDiskUsage .TotalBytes) }}
     </li>
     <li>
-      <strong>PicoShare usage</strong>
+      <strong>{{ .L.T "systemInfo.picoshareUsage" }}</strong>
       <ul>
         <li>
-          <strong>Upload data</strong>:
+          <strong>{{ .L.T "systemInfo.uploadData" }}</strong>:
           {{ formatDiskUsage .TotalServingBytes }}
         </li>
         <li>
-          <strong>Database files</strong>:
+          <strong>{{ .L.T "systemInfo.databaseFiles" }}</strong>:
           {{ formatDiskUsage .DatabaseFileBytes }}
           <a id="file-size-information" href="#"
             ><span class="text-info">
@@ -116,7 +115,7 @@
           ></a>
         </li>
         <li>
-          <strong>Reclaimable space</strong>:
+          <strong>{{ .L.T "systemInfo.reclaimableSpace" }}</strong>:
           {{ formatDiskUsage .ReclaimableBytes }}
         </li>
       </ul>
@@ -125,36 +124,31 @@
 
   <div class="notification alert alert-info d-none">
     <p>
-      PicoShare's database files occupy more disk space than the sum total of
-      PicoShare's file uploads.
+      {{ .L.T "systemInfo.reclaimableNotice1" }}
     </p>
     <p>
-      After files are deleted, PicoShare temporarily retains the space as
-      reclaimable space. PicoShare returns reclaimable space to the filesystem
-      during database cleanup, which runs at startup and every few hours, or
-      when you select "Clean up now."
+      {{ .L.T "systemInfo.reclaimableNotice2" }}
     </p>
   </div>
 
-  <h2>Database Cleanup</h2>
+  <h2>{{ .L.T "systemInfo.databaseCleanup" }}</h2>
   <p>
-    Cleanup deletes expired files and old download history and returns
-    reclaimable space to the filesystem.
+    {{ .L.T "systemInfo.cleanupIntro" }}
   </p>
   <p>
-    <strong>Last cleanup</strong>:
+    <strong>{{ .L.T "systemInfo.lastCleanup" }}</strong>:
     {{ if .LastCleanupTime.IsZero }}
-      Not yet run
+      {{ .L.T "systemInfo.notYetRun" }}
     {{ else }}
       {{ .LastCleanupTime.Format "2006-01-02 15:04:05 -0700" }}
       {{ if .LastCleanupFailed }}
-        <span class="badge text-bg-danger">Failed</span>
+        <span class="badge text-bg-danger">{{ .L.T "systemInfo.failed" }}</span>
       {{ end }}
     {{ end }}
   </p>
   <button id="cleanup-btn" class="btn btn-primary mb-4" type="button">
     <i class="fa-solid fa-broom me-2"></i>
-    Clean up now
+    {{ .L.T "systemInfo.cleanUpNow" }}
   </button>
 
   <div id="error" class="d-none my-3">
@@ -163,24 +157,31 @@
       role="alert"
     >
       <div>
-        <strong>Error</strong>
-        <div id="error-message" class="mt-1">Placeholder error.</div>
+        <strong>{{ .L.T "common.error" }}</strong>
+        <div id="error-message" class="mt-1">
+          {{ .L.T "common.placeholderError" }}
+        </div>
       </div>
-      <button class="btn-close" type="button" aria-label="Close"></button>
+      <button
+        class="btn-close"
+        type="button"
+        aria-label="{{ .L.T "common.close" }}"
+      ></button>
     </div>
   </div>
 
-  <h2>PicoShare Version</h2>
+  <h2>{{ .L.T "systemInfo.version" }}</h2>
   <ul>
-    <li><strong>Version</strong>: {{ .Version }}</li>
+    <li><strong>{{ .L.T "systemInfo.versionLabel" }}</strong>: {{ .Version }}</li>
     {{ if .Revision }}
       <li>
-        <strong>Revision</strong>: <span class="code">{{ .Revision }}</span>
+        <strong>{{ .L.T "systemInfo.revision" }}</strong>:
+        <span class="code">{{ .Revision }}</span>
       </li>
     {{ end }}
     {{ if not .BuildTime.IsZero }}
       <li>
-        <strong>Built at</strong>:
+        <strong>{{ .L.T "systemInfo.builtAt" }}</strong>:
         {{ .BuildTime.Format "2006-01-02 15:04:05 -0700" }}
       </li>
     {{ end }}
