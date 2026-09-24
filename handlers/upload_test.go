@@ -166,6 +166,67 @@ func TestEntryPost(t *testing.T) {
 	}
 }
 
+func TestEntryPostRespectsNonAdminFileLifetimeCap(t *testing.T) {
+	dataStore := test_sqlite.New(t)
+	// The first login becomes the administrator who configures the cap; the
+	// second is the non-admin uploader the cap applies to.
+	mustLoginAsAdmin(t, &dataStore, time.Now())
+	_, nonAdminCookie := mustLoginAsUser(t, &dataStore, "non-admin", time.Now())
+
+	settings, err := dataStore.ReadSettings()
+	if err != nil {
+		t.Fatalf("failed to read settings: %v", err)
+	}
+	settings.MaxNonAdminFileLifetime = picoshare.NewFileLifetimeInDays(7)
+	if err := dataStore.UpdateSettings(settings); err != nil {
+		t.Fatalf("failed to save settings: %v", err)
+	}
+
+	s := handlers.New(handlers.Params{Store: &dataStore, CheckSpace: nilSpaceCheckFunc, Collector: nilGarbageCollector, Now: time.Now})
+
+	for _, tt := range []struct {
+		description string
+		expiration  string
+		status      int
+	}{
+		{
+			description: "expiration within the non-admin cap is allowed",
+			expiration:  time.Now().AddDate(0, 0, 3).UTC().Format(time.RFC3339),
+			status:      http.StatusOK,
+		},
+		{
+			description: "expiration beyond the non-admin cap is rejected",
+			expiration:  time.Now().AddDate(0, 0, 30).UTC().Format(time.RFC3339),
+			status:      http.StatusBadRequest,
+		},
+		{
+			description: "never-expiring upload is rejected when a cap is set",
+			expiration:  "2999-12-31T00:00:00Z",
+			status:      http.StatusBadRequest,
+		},
+	} {
+		t.Run(tt.description, func(t *testing.T) {
+			formData, contentType := createMultipartFormBody("dummy.png", "", "", bytes.NewBuffer([]byte("dummy bytes")))
+
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/api/entry?expiration="+tt.expiration,
+				formData,
+			)
+			req.Header.Add("Content-Type", contentType)
+			req.AddCookie(nonAdminCookie)
+
+			rec := httptest.NewRecorder()
+			s.Router().ServeHTTP(rec, req)
+			res := rec.Result()
+
+			if got, want := res.StatusCode, tt.status; got != want {
+				t.Errorf("status=%d, want=%d", got, want)
+			}
+		})
+	}
+}
+
 func TestEntryPut(t *testing.T) {
 	type fakeEntry struct {
 		ID                 string

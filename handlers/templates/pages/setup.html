@@ -1,7 +1,7 @@
 {{ define "script-tags" }}
   <script type="module" nonce="{{ .CspNonce }}">
     import { testConnection, saveSetup } from "/js/controllers/setup.js";
-    import { showElement, hideElement } from "/js/lib/bulma.js";
+    import { showElement, hideElement } from "/js/lib/visibility.js";
     import { enableElement, disableElement } from "/js/lib/html.js";
     import { t } from "/js/lib/i18n.js";
 

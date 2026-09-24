@@ -3,6 +3,12 @@
     .box-wrapper + .box-wrapper {
       margin-top: 1rem;
     }
+
+    .qr-caption {
+      color: #696969;
+      font-size: 0.75rem;
+      margin: 0.5rem 0 0;
+    }
   </style>
   <div class="box-wrapper">
     <upload-link-box id="verbose-link-box"
@@ -13,6 +19,10 @@
     <upload-link-box id="short-link-box"
       >{{ .L.T "uploadLinks.shortLink" }}</upload-link-box
     >
+  </div>
+  <div class="box-wrapper">
+    <qr-code-box id="qr-code"></qr-code-box>
+    <p class="qr-caption">{{ .L.T "uploadLinks.qrCode" }}</p>
   </div>
 </template>
 
@@ -59,6 +69,9 @@
           this.shadowRoot.getElementById("verbose-link-box").href =
             makeVerboseLink(this.fileId, this.filename);
           this.shadowRoot.getElementById("short-link-box").href = makeShortLink(
+            this.fileId,
+          );
+          this.shadowRoot.getElementById("qr-code").href = makeShortLink(
             this.fileId,
           );
         }

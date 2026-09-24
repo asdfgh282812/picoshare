@@ -29,6 +29,7 @@ func TestSettingsPut(t *testing.T) {
 			settings: picoshare.Settings{
 				DefaultFileLifetime:      picoshare.NewFileLifetimeInDays(7),
 				DownloadHistoryRetention: picoshare.KeepDownloadHistoryForever,
+				MaxNonAdminFileLifetime:  picoshare.FileLifetimeInfinite,
 			},
 			status: http.StatusOK,
 		},
@@ -41,6 +42,7 @@ func TestSettingsPut(t *testing.T) {
 			settings: picoshare.Settings{
 				DefaultFileLifetime:      picoshare.FileLifetimeInfinite,
 				DownloadHistoryRetention: picoshare.KeepDownloadHistoryForever,
+				MaxNonAdminFileLifetime:  picoshare.FileLifetimeInfinite,
 			},
 			status: http.StatusOK,
 		},
@@ -53,8 +55,33 @@ func TestSettingsPut(t *testing.T) {
 			settings: picoshare.Settings{
 				DefaultFileLifetime:      picoshare.NewFileLifetimeInDays(7),
 				DownloadHistoryRetention: mustCreateDownloadHistoryRetention(90),
+				MaxNonAdminFileLifetime:  picoshare.FileLifetimeInfinite,
 			},
 			status: http.StatusOK,
+		},
+		{
+			description: "valid request for 7-day non-admin upload limit",
+			payload: `{
+					"defaultExpirationDays": 7,
+					"keepDownloadHistoryForever": true,
+					"maxNonAdminFileLifetimeDays": 7
+				}`,
+			settings: picoshare.Settings{
+				DefaultFileLifetime:      picoshare.NewFileLifetimeInDays(7),
+				DownloadHistoryRetention: picoshare.KeepDownloadHistoryForever,
+				MaxNonAdminFileLifetime:  picoshare.NewFileLifetimeInDays(7),
+			},
+			status: http.StatusOK,
+		},
+		{
+			description: "rejects non-admin upload limit beyond the maximum",
+			payload: `{
+					"defaultExpirationDays": 7,
+					"keepDownloadHistoryForever": true,
+					"maxNonAdminFileLifetimeDays": 3651
+				}`,
+			settings: picoshare.Settings{},
+			status:   http.StatusBadRequest,
 		},
 		{
 			description: "rejects download history retention of zero days",

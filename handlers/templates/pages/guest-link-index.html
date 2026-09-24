@@ -30,7 +30,7 @@
       }
 
       & .inactive {
-        background-color: #d9d9d9;
+        background-color: var(--bs-secondary-bg);
       }
 
       & .inactive [data-action="copy"] {
@@ -51,7 +51,7 @@
       guestLinkEnable,
       guestLinkDisable,
     } from "/js/controllers/guestLinks.js";
-    import { showElement, hideElement } from "/js/lib/bulma.js";
+    import { showElement, hideElement } from "/js/lib/visibility.js";
     import { copyToClipboard } from "/js/lib/clipboard.js";
     import { t } from "/js/lib/i18n.js";
 
@@ -218,6 +218,25 @@
             <td class="align-middle">
               {{ .FilesUploaded }} /
               {{ formatCountLimit .MaxFileUploads $l }}
+              {{ $uploadPct := guestLinkUploadProgressPercent .FilesUploaded .MaxFileUploads }}
+              {{ if ge $uploadPct 0 }}
+                <div
+                  class="progress mt-1"
+                  style="height: 4px"
+                  role="progressbar"
+                  aria-label="{{ $l.T "guestLinks.uploads" }}"
+                  aria-valuenow="{{ $uploadPct }}"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                >
+                  <div
+                    class="progress-bar{{ if ge $uploadPct 100 }}
+                      bg-danger
+                    {{ end }}"
+                    style="width: {{ $uploadPct }}%"
+                  ></div>
+                </div>
+              {{ end }}
             </td>
             <td class="align-middle">
               <div class="d-flex justify-content-end gap-2">

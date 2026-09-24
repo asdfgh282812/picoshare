@@ -8,12 +8,12 @@
       width: 100%;
       height: 0.75rem;
       border-radius: var(--bs-border-radius-pill);
-      background-color: var(--bs-gray-200);
+      background-color: var(--bs-secondary-bg);
       overflow: hidden;
     }
 
     .progress::-webkit-progress-bar {
-      background-color: var(--bs-gray-200);
+      background-color: var(--bs-secondary-bg);
       border-radius: var(--bs-border-radius-pill);
     }
 
@@ -45,7 +45,7 @@
       toggleShowElement,
       showElement,
       hideElement,
-    } from "/js/lib/bulma.js";
+    } from "/js/lib/visibility.js";
     import { enableElement, disableElement } from "/js/lib/html.js";
 
     const sizeDeltaNotification = document.querySelector(".notification");
@@ -172,7 +172,10 @@
 
   <h2>{{ .L.T "systemInfo.version" }}</h2>
   <ul>
-    <li><strong>{{ .L.T "systemInfo.versionLabel" }}</strong>: {{ .Version }}</li>
+    <li>
+      <strong>{{ .L.T "systemInfo.versionLabel" }}</strong>:
+      {{ .Version }}
+    </li>
     {{ if .Revision }}
       <li>
         <strong>{{ .L.T "systemInfo.revision" }}</strong>:

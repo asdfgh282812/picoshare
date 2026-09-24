@@ -103,10 +103,10 @@ services:
 
 ### Environment variables
 
-| Environment Variable    | Meaning                                                                                                           |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `PORT`            | TCP port on which to listen for HTTP connections (defaults to 4001).                 |
-| `PS_BEHIND_PROXY` | Set to `"true"` for better logging when PicoShare is running behind a reverse proxy. |
+| Environment Variable | Meaning                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------ |
+| `PORT`               | TCP port on which to listen for HTTP connections (defaults to 4001).                 |
+| `PS_BEHIND_PROXY`    | Set to `"true"` for better logging when PicoShare is running behind a reverse proxy. |
 
 PicoShare no longer reads a shared-secret environment variable. Configure single sign-on through the `/setup` page instead; see [Single sign-on setup](docs/deployment/synology-sso.md).
 

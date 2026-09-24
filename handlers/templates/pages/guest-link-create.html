@@ -1,7 +1,7 @@
 {{ define "script-tags" }}
   <script type="module" nonce="{{ .CspNonce }}">
     import { guestLinkNew } from "/js/controllers/guestLinks.js";
-    import { showElement, hideElement } from "/js/lib/bulma.js";
+    import { showElement, hideElement } from "/js/lib/visibility.js";
     import { enableElement, disableElement } from "/js/lib/html.js";
 
     const labelInput = document.getElementById("label");
@@ -105,9 +105,7 @@
     </div>
 
     <div class="mb-4">
-      <label class="form-label"
-        >{{ .L.T "guestLinkCreate.filesExpire" }}</label
-      >
+      <label class="form-label">{{ .L.T "guestLinkCreate.filesExpire" }}</label>
       <select id="file-expiration-select" class="form-select">
         {{ $l := .L }}
         {{ range .FileLifetimeOptions }}

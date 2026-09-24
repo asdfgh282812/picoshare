@@ -33,6 +33,8 @@ func settingsFromRequest(r *http.Request) (picoshare.Settings, error) {
 		DownloadHistoryRetentionDays uint16 `json:"downloadHistoryRetentionDays"`
 		KeepDownloadHistoryForever   bool   `json:"keepDownloadHistoryForever"`
 		DefaultLanguage              string `json:"defaultLanguage"`
+		MaxNonAdminFileLifetimeDays  uint16 `json:"maxNonAdminFileLifetimeDays"`
+		NoMaxNonAdminFileLifetime    bool   `json:"noMaxNonAdminFileLifetime"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&payload)
 	if err != nil {
@@ -61,9 +63,19 @@ func settingsFromRequest(r *http.Request) (picoshare.Settings, error) {
 		return picoshare.Settings{}, err
 	}
 
+	// Omitting both fields, as older or unrelated API clients do, means no
+	// cap, same as explicitly requesting one via noMaxNonAdminFileLifetime.
+	maxNonAdminFileLifetime := picoshare.FileLifetimeInfinite
+	if !payload.NoMaxNonAdminFileLifetime && payload.MaxNonAdminFileLifetimeDays != 0 {
+		if maxNonAdminFileLifetime, err = parse.FileLifetime(payload.MaxNonAdminFileLifetimeDays); err != nil {
+			return picoshare.Settings{}, err
+		}
+	}
+
 	return picoshare.Settings{
 		DefaultFileLifetime:      defaultLifetime,
 		DownloadHistoryRetention: retention,
 		DefaultLanguage:          defaultLanguage,
+		MaxNonAdminFileLifetime:  maxNonAdminFileLifetime,
 	}, nil
 }

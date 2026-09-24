@@ -84,10 +84,11 @@ func (s *Server) routes() {
 	views.HandleFunc("/setup", s.setupGet()).Methods(http.MethodGet)
 	views.PathPrefix("/g/{guestLinkID}").HandlerFunc(s.guestUploadGet()).Methods(http.MethodGet)
 	views.HandleFunc("/", s.indexGet()).Methods(http.MethodGet)
-	// The unlock route must precede the /-{id} prefix routes below, which would
-	// otherwise match it first.
+	// The unlock and preview routes must precede the /-{id} prefix routes
+	// below, which would otherwise match them first.
 	views.HandleFunc("/-{id}/unlock", s.entryUnlockGet()).Methods(http.MethodGet)
 	views.HandleFunc("/-{id}/unlock", s.entryUnlockPost()).Methods(http.MethodPost)
+	views.HandleFunc("/-{id}/preview", s.entryPreviewGet()).Methods(http.MethodGet)
 	views.PathPrefix("/-{id}").HandlerFunc(s.entryGet()).Methods(http.MethodGet)
 	views.PathPrefix("/-{id}/{filename}").HandlerFunc(s.entryGet()).Methods(http.MethodGet)
 

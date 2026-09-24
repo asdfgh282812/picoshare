@@ -12,6 +12,7 @@ import (
 	"math"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -94,7 +95,8 @@ func (s Server) guestLinkIndexGet() http.HandlerFunc {
 			}
 			return l.T("expiration.withDays", t.Format(time.DateOnly), days)
 		},
-		"friendlyLifetime": friendlyLifetimeName,
+		"friendlyLifetime":               friendlyLifetimeName,
+		"guestLinkUploadProgressPercent": guestLinkUploadProgressPercent,
 	}
 
 	t := parseTemplatesWithFuncs(fns, "templates/pages/guest-link-index.html")
@@ -184,6 +186,10 @@ func (s Server) fileIndexGet() http.HandlerFunc {
 			return l.T("expiration.withDays", t.Format(time.DateOnly), daysRemaining)
 		},
 		"formatFileSize": humanReadableFileSize,
+		"isExpiringSoon": func(et picoshare.ExpirationTime) bool {
+			return isExpiringSoon(et, s.now())
+		},
+		"fileTypeIcon": fileTypeIcon,
 	}
 
 	t := parseTemplatesWithFuncs(fns, "templates/pages/file-index.html")
@@ -211,6 +217,10 @@ func (s Server) fileAllGet() http.HandlerFunc {
 			return l.T("expiration.withDays", t.Format(time.DateOnly), daysRemaining)
 		},
 		"formatFileSize": humanReadableFileSize,
+		"isExpiringSoon": func(et picoshare.ExpirationTime) bool {
+			return isExpiringSoon(et, s.now())
+		},
+		"fileTypeIcon": fileTypeIcon,
 	}
 
 	t := parseTemplatesWithFuncs(fns, "templates/pages/file-index.html")
@@ -254,6 +264,17 @@ func (s Server) fileEditGet() http.HandlerFunc {
 			}
 			return time.Time(et).Format(time.RFC3339)
 		},
+		// formatMaxDate renders the expiration-picker's "max" attribute: an
+		// RFC 3339 timestamp, or "" (no cap) for the zero time. It's distinct
+		// from formatExpiration above because that one takes a
+		// picoshare.ExpirationTime and localizes "never expire" text, neither
+		// of which apply to a plain cutoff date.
+		"formatMaxDate": func(t time.Time) string {
+			if t.IsZero() {
+				return ""
+			}
+			return t.Format(time.RFC3339)
+		},
 	}
 
 	t := parseTemplatesWithFuncs(fns,
@@ -273,14 +294,33 @@ func (s Server) fileEditGet() http.HandlerFunc {
 			return
 		}
 
+		settings, err := s.store.ReadSettings()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to read settings from database: %v", err), http.StatusInternalServerError)
+			return
+		}
+		user, _ := currentUser(r.Context())
+		hasLifetimeCap := !user.IsAdmin && !settings.MaxNonAdminFileLifetime.Equal(picoshare.FileLifetimeInfinite)
+
+		var maxExpirationDate time.Time
+		if hasLifetimeCap {
+			maxExpirationDate = settings.MaxNonAdminFileLifetime.ExpirationFromTime(s.now()).Time()
+		}
+
 		renderTemplate(w, t, struct {
 			commonProps
-			Metadata            picoshare.UploadMetadata
-			MaxPassphraseLength int
+			Metadata              picoshare.UploadMetadata
+			MaxPassphraseLength   int
+			HasMaxFileLifetimeCap bool
+			MaxFileLifetimeName   string
+			MaxExpirationDate     time.Time
 		}{
-			commonProps:         makeCommonProps("title.fileEdit", r.Context()),
-			Metadata:            metadata,
-			MaxPassphraseLength: picoshare.MaxPassphraseLength,
+			commonProps:           makeCommonProps("title.fileEdit", r.Context()),
+			Metadata:              metadata,
+			MaxPassphraseLength:   picoshare.MaxPassphraseLength,
+			HasMaxFileLifetimeCap: hasLifetimeCap,
+			MaxFileLifetimeName:   friendlyLifetimeName(settings.MaxNonAdminFileLifetime, localizerFromContext(r.Context())),
+			MaxExpirationDate:     maxExpirationDate,
 		})
 	}
 }
@@ -300,11 +340,13 @@ func (s Server) fileInfoGet() http.HandlerFunc {
 			return t.Format(time.RFC3339)
 		},
 		"formatFileSize": humanReadableFileSize,
+		"previewKind":    previewKind,
 	}
 
 	t := parseTemplatesWithFuncs(
 		fns,
 		"templates/custom-elements/upload-link-box.html",
+		"templates/custom-elements/qr-code-box.html",
 		"templates/custom-elements/upload-links.html",
 		"templates/pages/file-info.html")
 
@@ -512,6 +554,7 @@ func (s Server) uploadGet() http.HandlerFunc {
 		fns,
 		"templates/custom-elements/expiration-picker.html",
 		"templates/custom-elements/upload-link-box.html",
+		"templates/custom-elements/qr-code-box.html",
 		"templates/custom-elements/upload-links.html",
 		"templates/pages/upload.html")
 
@@ -522,6 +565,10 @@ func (s Server) uploadGet() http.HandlerFunc {
 			return
 		}
 		l := localizerFromContext(r.Context())
+		user, _ := currentUser(r.Context())
+
+		hasLifetimeCap := !user.IsAdmin && !settings.MaxNonAdminFileLifetime.Equal(picoshare.FileLifetimeInfinite)
+
 		type lifetimeOption struct {
 			Lifetime  picoshare.FileLifetime
 			IsDefault bool
@@ -534,9 +581,48 @@ func (s Server) uploadGet() http.HandlerFunc {
 			{picoshare.FileLifetimeInfinite, false},
 		}
 
+		// denseLifetimeCapThresholdDays is the cap size below which the
+		// dropdown lists every day (1, 2, 3, ...) instead of jumping between the
+		// built-in options (1, 7, 30, ...), since e.g. a 4-day cap would
+		// otherwise only offer "1 day" and skip straight to "4 days".
+		const denseLifetimeCapThresholdDays = 30
+		if hasLifetimeCap {
+			capDays := settings.MaxNonAdminFileLifetime.Days()
+			var capped []lifetimeOption
+			if capDays <= denseLifetimeCapThresholdDays {
+				for d := uint16(1); d <= capDays; d++ {
+					capped = append(capped, lifetimeOption{picoshare.NewFileLifetimeInDays(d), false})
+				}
+			} else {
+				for _, lto := range lifetimeOptions {
+					if lto.Lifetime.Days() <= capDays {
+						capped = append(capped, lto)
+					}
+				}
+				// If the cap itself isn't one of the built-in options, add it so
+				// the maximum permitted lifetime is always selectable.
+				hasCapOption := false
+				for _, lto := range capped {
+					if lto.Lifetime.Days() == capDays {
+						hasCapOption = true
+						break
+					}
+				}
+				if !hasCapOption {
+					capped = append(capped, lifetimeOption{settings.MaxNonAdminFileLifetime, false})
+				}
+			}
+			lifetimeOptions = capped
+		}
+
+		defaultLifetime := settings.DefaultFileLifetime
+		if hasLifetimeCap && defaultLifetime.Days() > settings.MaxNonAdminFileLifetime.Days() {
+			defaultLifetime = settings.MaxNonAdminFileLifetime
+		}
+
 		defaultIsBuiltIn := false
 		for i, lto := range lifetimeOptions {
-			if lto.Lifetime.Equal(settings.DefaultFileLifetime) {
+			if lto.Lifetime.Equal(defaultLifetime) {
 				lifetimeOptions[i].IsDefault = true
 				defaultIsBuiltIn = true
 			}
@@ -544,7 +630,7 @@ func (s Server) uploadGet() http.HandlerFunc {
 		// If the default isn't one of the built-in options, add it and sort the
 		// list.
 		if !defaultIsBuiltIn {
-			lifetimeOptions = append(lifetimeOptions, lifetimeOption{settings.DefaultFileLifetime, true})
+			lifetimeOptions = append(lifetimeOptions, lifetimeOption{defaultLifetime, true})
 			sort.Slice(lifetimeOptions, func(i, j int) bool {
 				return lifetimeOptions[i].Lifetime.LessThan(lifetimeOptions[j].Lifetime)
 			})
@@ -571,17 +657,32 @@ func (s Server) uploadGet() http.HandlerFunc {
 
 		expirationOptions = append(expirationOptions, expirationOption{l.T("lifetime.custom"), time.Time{}, false})
 
+		// The expiration-picker custom element reads this as its "max"
+		// attribute to keep a custom date within the non-admin cap; it stays
+		// the zero time (which formatExpiration renders as "", i.e. no cap) for
+		// admins and everyone else with no cap configured.
+		var maxExpirationDate time.Time
+		if hasLifetimeCap {
+			maxExpirationDate = settings.MaxNonAdminFileLifetime.ExpirationFromTime(s.now()).Time()
+		}
+
 		renderTemplate(w, t, struct {
 			commonProps
-			ExpirationOptions   []expirationOption
-			MaxNoteLength       int
-			MaxPassphraseLength int
-			GuestLinkMetadata   picoshare.GuestLink
+			ExpirationOptions     []expirationOption
+			MaxNoteLength         int
+			MaxPassphraseLength   int
+			GuestLinkMetadata     picoshare.GuestLink
+			HasMaxFileLifetimeCap bool
+			MaxFileLifetimeName   string
+			MaxExpirationDate     time.Time
 		}{
-			commonProps:         makeCommonProps("title.upload", r.Context()),
-			MaxNoteLength:       parse.MaxFileNoteBytes,
-			MaxPassphraseLength: picoshare.MaxPassphraseLength,
-			ExpirationOptions:   expirationOptions,
+			commonProps:           makeCommonProps("title.upload", r.Context()),
+			MaxNoteLength:         parse.MaxFileNoteBytes,
+			MaxPassphraseLength:   picoshare.MaxPassphraseLength,
+			ExpirationOptions:     expirationOptions,
+			HasMaxFileLifetimeCap: hasLifetimeCap,
+			MaxFileLifetimeName:   friendlyLifetimeName(settings.MaxNonAdminFileLifetime, l),
+			MaxExpirationDate:     maxExpirationDate,
 		})
 	}
 }
@@ -589,6 +690,9 @@ func (s Server) uploadGet() http.HandlerFunc {
 func (s Server) guestUploadGet() http.HandlerFunc {
 	fns := template.FuncMap{
 		"formatExpiration": func(t time.Time) string {
+			if t.IsZero() {
+				return ""
+			}
 			return t.Format(time.RFC3339)
 		}}
 
@@ -596,6 +700,7 @@ func (s Server) guestUploadGet() http.HandlerFunc {
 		fns,
 		"templates/custom-elements/expiration-picker.html",
 		"templates/custom-elements/upload-link-box.html",
+		"templates/custom-elements/qr-code-box.html",
 		"templates/custom-elements/upload-links.html",
 		"templates/pages/upload.html")
 
@@ -681,12 +786,22 @@ func (s Server) guestUploadGet() http.HandlerFunc {
 
 		renderTemplate(w, t, struct {
 			commonProps
-			ExpirationOptions []expirationOption
-			GuestLinkMetadata picoshare.GuestLink
+			ExpirationOptions     []expirationOption
+			GuestLinkMetadata     picoshare.GuestLink
+			HasMaxFileLifetimeCap bool
+			MaxFileLifetimeName   string
+			MaxExpirationDate     time.Time
 		}{
 			commonProps:       makeCommonProps("title.upload", r.Context()),
 			ExpirationOptions: expirationOptions,
 			GuestLinkMetadata: gl,
+			// The guest link's own MaxFileLifetime already bounds these options
+			// (built above), so the separate non-admin upload cap doesn't apply
+			// here; upload.html still needs these fields to exist on this struct
+			// since it's the same template authenticated uploads render.
+			HasMaxFileLifetimeCap: false,
+			MaxFileLifetimeName:   "",
+			MaxExpirationDate:     time.Time{},
 		})
 	}
 }
@@ -723,6 +838,13 @@ func (s Server) settingsGet() http.HandlerFunc {
 			downloadHistoryRetentionDays = settings.DownloadHistoryRetention.Days()
 		}
 
+		// Suggest a sensible cap when the admin switches away from "no limit."
+		maxNonAdminExpirationDays := uint16(7)
+		noMaxNonAdminExpiration := settings.MaxNonAdminFileLifetime.Equal(picoshare.FileLifetimeInfinite)
+		if !noMaxNonAdminExpiration {
+			maxNonAdminExpirationDays = settings.MaxNonAdminFileLifetime.Days()
+		}
+
 		renderTemplate(w, t, struct {
 			commonProps
 			DefaultExpiration               uint16
@@ -732,6 +854,8 @@ func (s Server) settingsGet() http.HandlerFunc {
 			MaxDownloadHistoryRetentionDays uint16
 			KeepDownloadHistoryForever      bool
 			DefaultLanguage                 string
+			MaxNonAdminExpirationDays       uint16
+			NoMaxNonAdminExpiration         bool
 		}{
 			commonProps:                     makeCommonProps("title.settings", r.Context()),
 			DefaultExpiration:               defaultExpiration,
@@ -741,6 +865,8 @@ func (s Server) settingsGet() http.HandlerFunc {
 			MaxDownloadHistoryRetentionDays: picoshare.MaxDownloadHistoryRetentionDays,
 			KeepDownloadHistoryForever:      keepDownloadHistoryForever,
 			DefaultLanguage:                 settings.DefaultLanguage.String(),
+			MaxNonAdminExpirationDays:       maxNonAdminExpirationDays,
+			NoMaxNonAdminExpiration:         noMaxNonAdminExpiration,
 		})
 	}
 }
@@ -822,6 +948,80 @@ func friendlyLifetimeName(lt picoshare.FileLifetime, l i18n.Localizer) string {
 		return l.T("lifetime.day", days)
 	}
 	return l.T("lifetime.days", days)
+}
+
+// expiringSoonThreshold is how close to its expiration time an entry must be
+// before the file list flags it with a warning badge.
+const expiringSoonThreshold = 72 * time.Hour
+
+// isExpiringSoon reports whether et falls within expiringSoonThreshold of
+// now, excluding entries that never expire or have already expired (the
+// cleanup job removes those before a user would see them here).
+func isExpiringSoon(et picoshare.ExpirationTime, now time.Time) bool {
+	if et == picoshare.NeverExpire {
+		return false
+	}
+	delta := et.Time().Sub(now)
+	return delta > 0 && delta <= expiringSoonThreshold
+}
+
+// fileTypeIcon returns the Font Awesome icon class that best represents ct.
+func fileTypeIcon(ct picoshare.ContentType) string {
+	s := ct.String()
+	switch {
+	case strings.HasPrefix(s, "image/"):
+		return "fa-file-image"
+	case strings.HasPrefix(s, "video/"):
+		return "fa-file-video"
+	case strings.HasPrefix(s, "audio/"):
+		return "fa-file-audio"
+	case strings.HasPrefix(s, "text/"):
+		return "fa-file-lines"
+	case s == "application/pdf":
+		return "fa-file-pdf"
+	case s == "application/zip", s == "application/x-7z-compressed", s == "application/x-tar", s == "application/gzip", s == "application/x-rar-compressed":
+		return "fa-file-zipper"
+	case strings.Contains(s, "word"):
+		return "fa-file-word"
+	case strings.Contains(s, "excel") || strings.Contains(s, "spreadsheet"):
+		return "fa-file-excel"
+	default:
+		return "fa-file"
+	}
+}
+
+// previewKind classifies ct for the file-info page's inline preview: "image",
+// "video", or "pdf" for content types browsers can render natively, or "" for
+// anything else, which gets no preview.
+func previewKind(ct picoshare.ContentType) string {
+	s := ct.String()
+	switch {
+	case strings.HasPrefix(s, "image/"):
+		return "image"
+	case strings.HasPrefix(s, "video/"):
+		return "video"
+	case s == "application/pdf":
+		return "pdf"
+	default:
+		return ""
+	}
+}
+
+// guestLinkUploadProgressPercent returns how full a guest link's upload
+// allowance is, from 0 to 100, or -1 when the guest link has no upload
+// limit (in which case the caller shouldn't show a progress bar at all).
+func guestLinkUploadProgressPercent(uploaded int, limit picoshare.GuestUploadCountLimit) int {
+	if limit == picoshare.GuestUploadUnlimitedFileUploads {
+		return -1
+	}
+	if *limit <= 0 {
+		return 100
+	}
+	pct := int(100 * float64(uploaded) / float64(*limit))
+	if pct > 100 {
+		return 100
+	}
+	return pct
 }
 
 func humanReadableDiskUsage(b uint64) string {

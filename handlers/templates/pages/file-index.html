@@ -28,15 +28,44 @@
     #error {
       max-width: 60ch;
     }
+
+    #files-table th[data-sort-key] {
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    #files-table th[data-sort-key]::after {
+      content: "";
+      display: inline-block;
+      width: 0.6em;
+      margin-left: 0.35em;
+    }
+
+    #files-table th[data-sort-key][aria-sort="ascending"]::after {
+      content: "▲";
+      font-size: 0.7em;
+    }
+
+    #files-table th[data-sort-key][aria-sort="descending"]::after {
+      content: "▼";
+      font-size: 0.7em;
+    }
   </style>
 {{ end }}
 
 {{ define "script-tags" }}
   <script type="module" nonce="{{ .CspNonce }}">
-    import { showElement, hideElement } from "/js/lib/bulma.js";
+    import { showElement, hideElement } from "/js/lib/visibility.js";
     import { copyToClipboard } from "/js/lib/clipboard.js";
     import { makeShortLink } from "/js/lib/links.js";
+    import { initSortableTable } from "/js/lib/sortable-table.js";
     import { t } from "/js/lib/i18n.js";
+
+    const filesTable = document.getElementById("files-table");
+    if (filesTable) {
+      initSortableTable(filesTable);
+    }
 
     const errorContainer = document.getElementById("error");
 
@@ -69,83 +98,200 @@
 {{ define "content" }}
   <h1 class="h1">{{ .Title }}</h1>
 
-  <div class="table-responsive">
-    <table class="table">
-      <thead>
-        <tr>
-          <th>{{ .L.T "files.filename" }}</th>
-          {{ if .ShowOwner }}
-            <th>{{ .L.T "files.owner" }}</th>
-          {{ end }}
-          <th>{{ .L.T "files.note" }}</th>
-          <th>{{ .L.T "files.size" }}</th>
-          <th>{{ .L.T "files.uploaded" }}</th>
-          <th>{{ .L.T "files.expires" }}</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {{ $l := .L }}
-        {{ range .Files }}
-          <tr test-data-filename="{{ .Filename }}">
-            <td class="align-middle">
-              <a href="/-{{ .ID }}">{{ .Filename }}</a>
-            </td>
-            {{ if $.ShowOwner }}
+  {{ if not .Files }}
+    <div class="text-center text-secondary py-5">
+      <i class="fa-regular fa-folder-open fa-2x mb-3"></i>
+      <p class="h5">{{ .L.T "files.emptyTitle" }}</p>
+      <p>{{ .L.T "files.emptyBody" }}</p>
+      <a href="/" class="btn btn-success mt-2">{{ .L.T "nav.upload" }}</a>
+    </div>
+  {{ else }}
+    <div class="table-responsive d-none d-md-block">
+      <table class="table" id="files-table">
+        <thead>
+          <tr>
+            <th data-sort-key="filename" data-sort-type="string">
+              {{ .L.T "files.filename" }}
+            </th>
+            {{ if .ShowOwner }}
+              <th data-sort-key="owner" data-sort-type="string">
+                {{ .L.T "files.owner" }}
+              </th>
+            {{ end }}
+            <th>{{ .L.T "files.note" }}</th>
+            <th data-sort-key="size" data-sort-type="number">
+              {{ .L.T "files.size" }}
+            </th>
+            <th data-sort-key="uploaded" data-sort-type="number">
+              {{ .L.T "files.uploaded" }}
+            </th>
+            <th data-sort-key="expires" data-sort-type="number">
+              {{ .L.T "files.expires" }}
+            </th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ $l := .L }}
+          {{ range .Files }}
+            <tr test-data-filename="{{ .Filename }}">
+              <td class="align-middle" data-sort-value="{{ .Filename }}">
+                <i
+                  class="fa-solid {{ fileTypeIcon .ContentType }} text-secondary me-2"
+                ></i
+                ><a href="/-{{ .ID }}">{{ .Filename }}</a>
+              </td>
+              {{ if $.ShowOwner }}
+                <td
+                  class="align-middle"
+                  data-sort-value="{{ .OwnerUsername.String }}"
+                >
+                  {{ if .OwnerUsername.String }}
+                    {{ .OwnerUsername.String }}
+                  {{ else }}
+                    <span class="text-muted">{{ $l.T "files.unowned" }}</span>
+                  {{ end }}
+                </td>
+              {{ end }}
               <td class="align-middle">
+                {{ if .Note.Value }}
+                  <div class="tooltip">
+                    <i class="fa-solid fa-note-sticky mx-auto"></i>
+                    <span class="tooltip-text">{{ .Note }}</span>
+                  </div>
+                {{ end }}
+              </td>
+              <td class="align-middle" data-sort-value="{{ .Size.UInt64 }}">
+                {{ formatFileSize .Size }}
+              </td>
+              <td class="align-middle" data-sort-value="{{ .Uploaded.Unix }}">
+                {{ formatDate .Uploaded }}
+              </td>
+              <td
+                class="align-middle"
+                data-sort-value="{{ .Expires.Time.Unix }}"
+              >
+                {{- formatExpiration .Expires $l -}}
+                {{- if isExpiringSoon .Expires -}}
+                  <i
+                    class="fa-solid fa-triangle-exclamation text-danger ms-1"
+                    title="{{ $l.T "files.expiringSoon" }}"
+                  ></i>
+                {{- end -}}
+              </td>
+              <td class="align-middle">
+                <div class="d-flex justify-content-end gap-2">
+                  <a
+                    class="btn btn-outline-primary btn-sm file-action-btn"
+                    href="/files/{{ .ID }}/info"
+                    role="button"
+                    aria-label="{{ $l.T "files.info" }}"
+                  >
+                    <i class="fa-solid fa-circle-info"></i>
+                  </a>
+                  <a
+                    class="btn btn-outline-primary btn-sm file-action-btn"
+                    href="/files/{{ .ID }}/edit"
+                    role="button"
+                    aria-label="{{ $l.T "common.edit" }}"
+                  >
+                    <i class="fa-solid fa-pen-to-square"></i>
+                  </a>
+                  <button
+                    class="btn btn-outline-primary btn-sm file-action-btn"
+                    data-action="copy"
+                    aria-label="{{ $l.T "common.copy" }}"
+                    pico-entry-id="{{ .ID }}"
+                  >
+                    <i class="fa-solid fa-copy"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="d-md-none">
+      {{ $l := .L }}
+      {{ range .Files }}
+        <div class="card mb-3" test-data-filename="{{ .Filename }}">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <h2 class="h6 mb-2">
+                <i
+                  class="fa-solid {{ fileTypeIcon .ContentType }} text-secondary me-2"
+                ></i
+                ><a href="/-{{ .ID }}">{{ .Filename }}</a>
+              </h2>
+              {{ if .Note.Value }}
+                <i
+                  class="fa-solid fa-note-sticky text-secondary"
+                  title="{{ .Note }}"
+                ></i>
+              {{ end }}
+            </div>
+            {{ if $.ShowOwner }}
+              <p class="small text-secondary mb-1">
+                {{ $l.T "files.owner" }}:
                 {{ if .OwnerUsername.String }}
                   {{ .OwnerUsername.String }}
                 {{ else }}
-                  <span class="text-muted">{{ $l.T "files.unowned" }}</span>
+                  {{ $l.T "files.unowned" }}
                 {{ end }}
-              </td>
+              </p>
             {{ end }}
-            <td class="align-middle">
-              {{ if .Note.Value }}
-                <div class="tooltip">
-                  <i class="fa-solid fa-note-sticky mx-auto"></i>
-                  <span class="tooltip-text">{{ .Note }}</span>
-                </div>
+            <p class="small text-secondary mb-1">
+              {{ $l.T "files.size" }}:
+              {{ formatFileSize .Size }}
+            </p>
+            <p class="small text-secondary mb-1">
+              {{ $l.T "files.uploaded" }}:
+              {{ formatDate .Uploaded }}
+            </p>
+            <p class="small text-secondary mb-3">
+              {{ $l.T "files.expires" }}:
+              {{ formatExpiration .Expires $l }}
+              {{ if isExpiringSoon .Expires }}
+                <i
+                  class="fa-solid fa-triangle-exclamation text-danger ms-1"
+                  title="{{ $l.T "files.expiringSoon" }}"
+                ></i>
               {{ end }}
-            </td>
-            <td class="align-middle">{{ formatFileSize .Size }}</td>
-            <td class="align-middle">{{ formatDate .Uploaded }}</td>
-            <td class="align-middle">
-              {{- formatExpiration .Expires $l -}}
-            </td>
-            <td class="align-middle">
-              <div class="d-flex justify-content-end gap-2">
-                <a
-                  class="btn btn-outline-primary btn-sm file-action-btn"
-                  href="/files/{{ .ID }}/info"
-                  role="button"
-                  aria-label="{{ $l.T "files.info" }}"
-                >
-                  <i class="fa-solid fa-circle-info"></i>
-                </a>
-                <a
-                  class="btn btn-outline-primary btn-sm file-action-btn"
-                  href="/files/{{ .ID }}/edit"
-                  role="button"
-                  aria-label="{{ $l.T "common.edit" }}"
-                >
-                  <i class="fa-solid fa-pen-to-square"></i>
-                </a>
-                <button
-                  class="btn btn-outline-primary btn-sm file-action-btn"
-                  data-action="copy"
-                  aria-label="{{ $l.T "common.copy" }}"
-                  pico-entry-id="{{ .ID }}"
-                >
-                  <i class="fa-solid fa-copy"></i>
-                </button>
-              </div>
-            </td>
-          </tr>
-        {{ end }}
-      </tbody>
-    </table>
-  </div>
+            </p>
+            <div class="d-flex justify-content-end gap-2">
+              <a
+                class="btn btn-outline-primary btn-sm file-action-btn"
+                href="/files/{{ .ID }}/info"
+                role="button"
+                aria-label="{{ $l.T "files.info" }}"
+              >
+                <i class="fa-solid fa-circle-info"></i>
+              </a>
+              <a
+                class="btn btn-outline-primary btn-sm file-action-btn"
+                href="/files/{{ .ID }}/edit"
+                role="button"
+                aria-label="{{ $l.T "common.edit" }}"
+              >
+                <i class="fa-solid fa-pen-to-square"></i>
+              </a>
+              <button
+                class="btn btn-outline-primary btn-sm file-action-btn"
+                data-action="copy"
+                aria-label="{{ $l.T "common.copy" }}"
+                pico-entry-id="{{ .ID }}"
+              >
+                <i class="fa-solid fa-copy"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      {{ end }}
+    </div>
+  {{ end }}
+
 
   <div id="error" class="d-none my-3">
     <div

@@ -1,7 +1,7 @@
 {{ define "script-tags" }}
   <script type="module" nonce="{{ .CspNonce }}">
     import { editFile } from "/js/controllers/files.js";
-    import { showElement, hideElement } from "/js/lib/bulma.js";
+    import { showElement, hideElement } from "/js/lib/visibility.js";
     import { enableElement, disableElement } from "/js/lib/html.js";
 
     const editForm = document.getElementById("edit-form");
@@ -137,12 +137,19 @@
           <expiration-picker
             id="expiration-picker"
             class="dependent-field"
+            max="{{ formatMaxDate $.MaxExpirationDate }}"
             {{ if not (isNeverExpire .Expires) }}
               value="{{ formatExpiration .Expires $l }}"
             {{ else }}
               disabled
             {{ end }}
           />
+          {{ if $.HasMaxFileLifetimeCap }}
+            <div class="form-text">
+              {{ $l.T "upload.maxLifetimeHint" }}
+              {{ $.MaxFileLifetimeName }}
+            </div>
+          {{ end }}
         </fieldset>
 
         <fieldset class="mb-4">

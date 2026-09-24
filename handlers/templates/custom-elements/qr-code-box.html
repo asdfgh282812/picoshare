@@ -1,0 +1,78 @@
+<template id="qr-code-box-template">
+  <style nonce="{{ .CspNonce }}">
+    .qr-wrapper {
+      display: inline-block;
+      background: #ffffff;
+      padding: 0.75rem;
+      border-radius: var(--bs-border-radius);
+      border: 1px solid var(--bs-border-color);
+    }
+
+    .qr-wrapper svg {
+      display: block;
+      width: 128px;
+      height: 128px;
+    }
+  </style>
+  <div class="qr-wrapper">
+    <div id="qr-container"></div>
+  </div>
+</template>
+
+<!--
+  qrcode-generator is vendored as a classic (non-module) script because its
+  UMD wrapper only assigns a browser global when loaded that way; imported as
+  an ES module, its top-level `var qrcode` would stay module-scoped and
+  window.qrcode would never be set.
+-->
+<script src="/third-party/qrcode-generator@2.0.4/qrcode.js"></script>
+<script type="module" nonce="{{ .CspNonce }}">
+  (function () {
+    const template = document.querySelector("#qr-code-box-template");
+
+    customElements.define(
+      "qr-code-box",
+      class extends HTMLElement {
+        connectedCallback() {
+          this.attachShadow({ mode: "open" }).appendChild(
+            template.content.cloneNode(true),
+          );
+          this.render();
+        }
+
+        static get observedAttributes() {
+          return ["href"];
+        }
+
+        attributeChangedCallback(name, oldValue, newValue) {
+          if (name === "href" && newValue !== oldValue) {
+            this.render();
+          }
+        }
+
+        get href() {
+          return this.getAttribute("href");
+        }
+
+        set href(newValue) {
+          this.setAttribute("href", newValue);
+        }
+
+        render() {
+          if (!this.shadowRoot) {
+            return;
+          }
+          const container = this.shadowRoot.getElementById("qr-container");
+          container.innerHTML = "";
+          if (!this.href) {
+            return;
+          }
+          const qr = window.qrcode(0, "M");
+          qr.addData(this.href);
+          qr.make();
+          container.innerHTML = qr.createSvgTag({ scalable: true });
+        }
+      },
+    );
+  })();
+</script>

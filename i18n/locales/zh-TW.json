@@ -23,6 +23,7 @@
   "nav.logIn": "登入",
   "nav.language": "語言",
   "nav.toggleNavigation": "切換導覽選單",
+  "nav.toggleTheme": "切換淺色/深色主題",
 
   "lifetime.never": "永不過期",
   "lifetime.day": "%d 天",
@@ -76,6 +77,7 @@
   "upload.processing": "檔案已上傳！處理中…",
   "upload.complete": "上傳完成！",
   "upload.uploadAnother": "上傳其他檔案",
+  "upload.maxLifetimeHint": "管理員限制了你可以保存檔案的時間長度：",
 
   "js.progressUploading": "PicoShare ↑ %s",
   "js.progressComplete": "PicoShare - 完成",
@@ -92,7 +94,10 @@
   "files.size": "大小",
   "files.uploaded": "上傳時間",
   "files.expires": "到期時間",
-  "files.info": "系統資訊",
+  "files.info": "詳細資訊",
+  "files.emptyTitle": "目前沒有任何檔案",
+  "files.emptyBody": "你上傳的檔案會顯示在這裡。",
+  "files.expiringSoon": "即將到期",
 
   "fileEdit.heading": "編輯檔案",
   "fileEdit.filename": "檔名",
@@ -107,6 +112,7 @@
   "fileInfo.heading": "檔案資訊",
   "fileInfo.filename": "檔名",
   "fileInfo.links": "連結",
+  "fileInfo.preview": "預覽",
   "fileInfo.size": "大小",
   "fileInfo.expires": "到期時間",
   "fileInfo.downloads": "下載次數",
@@ -176,6 +182,9 @@
   "settings.defaultLanguage": "預設語言",
   "settings.defaultLanguageHint": "套用於尚未選擇語言的訪客。",
   "settings.defaultLanguageAuto": "依訪客瀏覽器自動判斷",
+  "settings.maxNonAdminExpiration": "非管理員上傳期限上限",
+  "settings.maxNonAdminExpirationHint": "限制非管理員使用者自己上傳的檔案最長可保存多久。管理員不受此限制。",
+  "settings.noMaxNonAdminExpiration": "不限制",
 
   "setup.heading": "設定單一登入",
   "setup.intro": "PicoShare 僅提供 OpenID Connect 單一登入，例如 <a href=\"https://kb.synology.com/en-uk/DSM/tutorial/set_up_oidc_for_dsm_in_sso_server\">Synology SSO Server</a>。請先在你的身分識別提供者中，使用下方的重新導向網址將 PicoShare 註冊為應用程式，再將相關資訊貼到這裡。",
@@ -234,5 +243,6 @@
 
   "uploadLinks.fullLink": "完整連結",
   "uploadLinks.shortLink": "短網址",
+  "uploadLinks.qrCode": "掃描即可在其他裝置開啟",
   "expirationPicker.date": "到期日期"
 }

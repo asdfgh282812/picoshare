@@ -1,5 +1,8 @@
 import { logOut } from "./controllers/auth.js";
 import { setLanguage } from "./controllers/language.js";
+import { initThemeToggle } from "./controllers/theme.js";
+
+initThemeToggle();
 
 const logOutEl = document.getElementById("navbar-log-out");
 if (logOutEl) {

@@ -10,7 +10,7 @@
     }
 
     .file.accepting-drop {
-      background: #dbf5ff;
+      background: var(--bs-primary-bg-subtle);
       border-color: var(--bs-primary);
     }
 
@@ -55,12 +55,12 @@
       width: 100%;
       height: 0.75rem;
       border-radius: var(--bs-border-radius-pill);
-      background-color: var(--bs-gray-200);
+      background-color: var(--bs-secondary-bg);
       overflow: hidden;
     }
 
     .upload-progress-bar::-webkit-progress-bar {
-      background-color: var(--bs-gray-200);
+      background-color: var(--bs-secondary-bg);
       border-radius: var(--bs-border-radius-pill);
     }
 
@@ -79,7 +79,7 @@
 {{ define "script-tags" }}
   <script type="module" nonce="{{ .CspNonce }}">
     import { guestUploadFile, uploadFile } from "/js/controllers/files.js";
-    import { showElement, hideElement } from "/js/lib/bulma.js";
+    import { showElement, hideElement } from "/js/lib/visibility.js";
     import { sortClipboardItems } from "/js/lib/clipboard.js";
     import { t } from "/js/lib/i18n.js";
 
@@ -342,6 +342,7 @@
 {{ define "custom-elements" }}
   {{ template "expiration-picker.html" . }}
   {{ template "upload-link-box.html" . }}
+  {{ template "qr-code-box.html" . }}
   {{ template "upload-links.html" . }}
 {{ end }}
 
@@ -392,7 +393,14 @@
             <expiration-picker
               id="expiration-picker"
               class="dependent-field d-none"
+              max="{{ formatExpiration .MaxExpirationDate }}"
             />
+            {{ if .HasMaxFileLifetimeCap }}
+              <div class="form-text">
+                {{ .L.T "upload.maxLifetimeHint" }}
+                {{ .MaxFileLifetimeName }}
+              </div>
+            {{ end }}
           </div>
         {{ end }}
 
