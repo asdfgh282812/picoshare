@@ -42,7 +42,7 @@ func (s Server) setupGet() http.HandlerFunc {
 			commonProps
 			RedirectURL string
 		}{
-			commonProps: makeCommonProps("PicoShare - Setup", r.Context()),
+			commonProps: makeCommonProps("title.setup", r.Context()),
 			RedirectURL: baseURLFromRequest(r) + "/oidc/callback",
 		})
 	}

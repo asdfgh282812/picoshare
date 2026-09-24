@@ -21,6 +21,7 @@ There are a million services for sharing files, but none of them are quite like 
 - **Direct download links**: PicoShare gives you a direct download link you can share with anyone. They can view or download the file with no ads or signups.
 - **No file restrictions**: Unlike sites like imgur, Vimeo, or SoundCloud that only allow you to share specific types of files, PicoShare lets you share any file of any size.
 - **No resizing/re-encoding**: If you upload media like images, video, or audio, PicoShare never forces you to wait on re-encoding. You get a direct download link as soon as you upload the file, and PicoShare never resizes or re-encodes your file.
+- **Multiple languages**: PicoShare's interface is available in English and Traditional Chinese (繁體中文). Anyone can switch languages from the navbar, and administrators can set a site-wide default.
 
 ## Run PicoShare
 

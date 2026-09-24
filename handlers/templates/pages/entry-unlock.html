@@ -1,9 +1,11 @@
 {{ define "content" }}
-  <h1 class="h1">Protected Download</h1>
-  <p>To download this file, enter it passphrase:</p>
+  <h1 class="h1">{{ .L.T "entryUnlock.heading" }}</h1>
+  <p>{{ .L.T "entryUnlock.prompt" }}</p>
   <form method="post">
     <div class="mb-4">
-      <label class="form-label" for="passphrase">Passphrase</label>
+      <label class="form-label" for="passphrase"
+        >{{ .L.T "entryUnlock.passphrase" }}</label
+      >
       <input
         id="passphrase"
         class="form-control"
@@ -14,8 +16,10 @@
       />
     </div>
     {{ if .IncorrectPassphrase }}
-      <div class="alert alert-danger" role="alert">Incorrect passphrase.</div>
+      <div class="alert alert-danger" role="alert">
+        {{ .L.T "entryUnlock.incorrect" }}
+      </div>
     {{ end }}
-    <button class="btn btn-primary">Download</button>
+    <button class="btn btn-primary">{{ .L.T "entryUnlock.download" }}</button>
   </form>
 {{ end }}

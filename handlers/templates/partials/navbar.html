@@ -9,7 +9,7 @@
         data-bs-target="#navbar-links"
         aria-controls="navbar-links"
         aria-expanded="false"
-        aria-label="Toggle navigation"
+        aria-label="{{ .L.T "nav.toggleNavigation" }}"
       >
         <span class="navbar-toggler-icon"></span>
       </button>
@@ -18,15 +18,17 @@
           <ul class="navbar-nav me-auto mb-2 mb-lg-0 align-items-lg-center">
             <li class="nav-item">
               <a class="btn btn-success me-lg-2" role="menuitem" href="/"
-                >Upload</a
+                >{{ .L.T "nav.upload" }}</a
               >
             </li>
             <li class="nav-item">
-              <a class="nav-link" role="menuitem" href="/files">Files</a>
+              <a class="nav-link" role="menuitem" href="/files"
+                >{{ .L.T "nav.files" }}</a
+              >
             </li>
             <li class="nav-item">
               <a class="nav-link" role="menuitem" href="/guest-links"
-                >Guest Links</a
+                >{{ .L.T "nav.guestLinks" }}</a
               >
             </li>
           </ul>
@@ -41,27 +43,62 @@
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
               >
-                System
+                {{ .L.T "nav.system" }}
               </a>
               <ul class="dropdown-menu dropdown-menu-end">
                 <li>
                   <a class="dropdown-item" role="menuitem" href="/files/all"
-                    >All Files</a
+                    >{{ .L.T "nav.allFiles" }}</a
                   >
                 </li>
                 <li>
                   <a class="dropdown-item" role="menuitem" href="/information"
-                    >Information</a
+                    >{{ .L.T "nav.information" }}</a
                   >
                 </li>
                 <li>
                   <a class="dropdown-item" role="menuitem" href="/settings"
-                    >Settings</a
+                    >{{ .L.T "nav.settings" }}</a
                   >
                 </li>
               </ul>
             </li>
           {{ end }}
+          <li class="nav-item dropdown">
+            <a
+              class="nav-link dropdown-toggle"
+              href="#"
+              role="menuitem"
+              data-bs-toggle="dropdown"
+              aria-expanded="false"
+              aria-label="{{ .L.T "nav.language" }}"
+            >
+              <i class="fa-solid fa-language"></i>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end">
+              {{ $currentLang := .Lang }}
+              <li>
+                <button
+                  class="dropdown-item navbar-language-option{{ if eq $currentLang "en" }} active{{ end }}"
+                  role="menuitem"
+                  type="button"
+                  data-lang="en"
+                >
+                  English
+                </button>
+              </li>
+              <li>
+                <button
+                  class="dropdown-item navbar-language-option{{ if eq $currentLang "zh-TW" }} active{{ end }}"
+                  role="menuitem"
+                  type="button"
+                  data-lang="zh-TW"
+                >
+                  繁體中文
+                </button>
+              </li>
+            </ul>
+          </li>
           {{ if .IsAuthenticated }}
             <li class="nav-item dropdown">
               <a
@@ -81,7 +118,7 @@
                     role="menuitem"
                     type="button"
                   >
-                    Log Out
+                    {{ .L.T "nav.logOut" }}
                   </button>
                 </li>
               </ul>
@@ -89,7 +126,7 @@
           {{ else }}
             <li class="nav-item">
               <a class="btn btn-primary" role="menuitem" href="/login">
-                Log In
+                {{ .L.T "nav.logIn" }}
               </a>
             </li>
           {{ end }}

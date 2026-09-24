@@ -12,6 +12,7 @@
     import { settingsPut } from "/js/controllers/settings.js";
     import { showElement, hideElement } from "/js/lib/bulma.js";
     import { enableElement, disableElement } from "/js/lib/html.js";
+    import { t } from "/js/lib/i18n.js";
 
     const errorContainer = document.getElementById("error");
     const progressSpinner = document.getElementById("progress-spinner");
@@ -26,6 +27,7 @@
     const keepDownloadHistoryForeverCheckbox = document.getElementById(
       "keep-download-history-forever-checkbox",
     );
+    const defaultLanguageSelect = document.getElementById("default-language");
     const saveBtn = document.querySelector(
       "#settings-form button[type='submit']",
     );
@@ -54,10 +56,15 @@
           downloadHistoryRetention.value,
         );
       }
+      settings.defaultLanguage = defaultLanguageSelect.value;
       return settings;
     }
 
     defaultExpiration.addEventListener("input", () => {
+      enableElement(saveBtn);
+    });
+
+    defaultLanguageSelect.addEventListener("change", () => {
       enableElement(saveBtn);
     });
 
@@ -113,7 +120,7 @@
           .then(() => {
             document
               .querySelector("snackbar-notifications")
-              .addInfoMessage("Settings saved");
+              .addInfoMessage(t("settings.saved"));
           })
           .catch((error) => {
             document.getElementById("error-message").innerText = error;
@@ -134,12 +141,12 @@
 {{ end }}
 
 {{ define "content" }}
-  <h1 class="h1">Settings</h1>
+  <h1 class="h1">{{ .L.T "settings.heading" }}</h1>
 
   <form id="settings-form">
     <fieldset class="border rounded p-3 mb-4">
       <legend class="float-none w-auto px-2 fs-6 mb-0">
-        Default File Expiration
+        {{ .L.T "settings.defaultExpiration" }}
       </legend>
 
       <div class="form-check my-3">
@@ -150,7 +157,7 @@
           {{ if .DefaultNeverExpire }}checked{{ end }}
         />
         <label class="form-check-label" for="store-forever-checkbox">
-          Store files forever
+          {{ .L.T "settings.storeForever" }}
         </label>
       </div>
       <div class="input-group">
@@ -180,20 +187,22 @@
               selected
             {{ end }}
           >
-            Days
+            {{ .L.T "settings.days" }}
           </option>
           <option
             value="years"
             {{ if eq .ExpirationTimeUnit "years" }}selected{{ end }}
           >
-            Years
+            {{ .L.T "settings.years" }}
           </option>
         </select>
       </div>
     </fieldset>
 
     <fieldset class="border rounded p-3 mb-4">
-      <legend class="float-none w-auto px-2 fs-6 mb-0">Download History</legend>
+      <legend class="float-none w-auto px-2 fs-6 mb-0">
+        {{ .L.T "settings.downloadHistory" }}
+      </legend>
 
       <div class="form-check my-3">
         <input
@@ -206,11 +215,11 @@
           class="form-check-label"
           for="keep-download-history-forever-checkbox"
         >
-          Keep download history forever
+          {{ .L.T "settings.keepForever" }}
         </label>
       </div>
       <label class="form-label" for="download-history-retention">
-        Delete download records older than
+        {{ .L.T "settings.deleteRecordsOlderThan" }}
       </label>
       <div class="input-group">
         <input
@@ -224,14 +233,33 @@
           size="4"
           value="{{ .DownloadHistoryRetentionDays }}"
         />
-        <span class="input-group-text">days</span>
+        <span class="input-group-text">{{ .L.T "settings.daysUnit" }}</span>
       </div>
+    </fieldset>
+
+    <fieldset class="border rounded p-3 mb-4">
+      <legend class="float-none w-auto px-2 fs-6 mb-0">
+        {{ .L.T "settings.defaultLanguage" }}
+      </legend>
+
+      <select id="default-language" class="form-select">
+        <option value="auto" {{ if eq .DefaultLanguage "auto" }}selected{{ end }}>
+          {{ .L.T "settings.defaultLanguageAuto" }}
+        </option>
+        {{ $current := .DefaultLanguage }}
+        {{ range .SupportedLangs }}
+          <option value="{{ . }}" {{ if eq $current . }}selected{{ end }}>
+            {{ if eq . "en" }}English{{ else if eq . "zh-TW" }}繁體中文{{ end }}
+          </option>
+        {{ end }}
+      </select>
+      <div class="form-text">{{ .L.T "settings.defaultLanguageHint" }}</div>
     </fieldset>
 
     <div>
       <button class="btn btn-primary" disabled type="submit">
         <i class="fa-solid fa-floppy-disk me-2"></i>
-        Save
+        {{ .L.T "common.save" }}
       </button>
     </div>
   </form>
@@ -246,10 +274,16 @@
       role="alert"
     >
       <div>
-        <strong>Error</strong>
-        <div id="error-message" class="mt-1">Placeholder error.</div>
+        <strong>{{ .L.T "common.error" }}</strong>
+        <div id="error-message" class="mt-1">
+          {{ .L.T "common.placeholderError" }}
+        </div>
       </div>
-      <button class="btn-close" type="button" aria-label="Close"></button>
+      <button
+        class="btn-close"
+        type="button"
+        aria-label="{{ .L.T "common.close" }}"
+      ></button>
     </div>
   </div>
 {{ end }}

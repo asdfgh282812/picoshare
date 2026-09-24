@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mtlynch/picoshare/handlers"
+	"github.com/mtlynch/picoshare/store/test_sqlite"
 )
 
 var errMultipleResponseWrites = errors.New("response body written more than once")
@@ -49,8 +50,9 @@ func (w *singleWriteResponseWriter) Write(p []byte) (int, error) {
 }
 
 func TestIndexGetWritesRenderedTemplateAtomically(t *testing.T) {
+	dataStore := test_sqlite.New(t)
 	s := handlers.New(handlers.Params{
-		Store:      nil,
+		Store:      &dataStore,
 		CheckSpace: nilSpaceCheckFunc,
 		Collector:  nilGarbageCollector,
 		Now:        time.Now,

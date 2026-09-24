@@ -5,10 +5,14 @@
     }
   </style>
   <div class="box-wrapper">
-    <upload-link-box id="verbose-link-box">Full Link</upload-link-box>
+    <upload-link-box id="verbose-link-box"
+      >{{ .L.T "uploadLinks.fullLink" }}</upload-link-box
+    >
   </div>
   <div class="box-wrapper">
-    <upload-link-box id="short-link-box">Shortlink</upload-link-box>
+    <upload-link-box id="short-link-box"
+      >{{ .L.T "uploadLinks.shortLink" }}</upload-link-box
+    >
   </div>
 </template>
 

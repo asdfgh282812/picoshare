@@ -27,7 +27,7 @@
 {{ end }}
 
 {{ define "content" }}
-  <h1 class="h1">Downloads</h1>
+  <h1 class="h1">{{ .L.T "fileDownloads.heading" }}</h1>
 
   {{ with .Metadata }}
     <h2>{{ .Filename }}</h2>
@@ -42,7 +42,7 @@
         {{ if .ShowUniqueOnly }}checked{{ end }}
       />
       <label class="form-check-label" for="unique-ips-only">
-        Unique IPs only
+        {{ .L.T "fileDownloads.uniqueIpsOnly" }}
       </label>
     </div>
 
@@ -50,11 +50,11 @@
       <table class="table">
         <thead>
           <tr>
-            <th>Download</th>
-            <th>Time</th>
-            <th>Downloader IP</th>
-            <th>Browser</th>
-            <th>Platform</th>
+            <th>{{ .L.T "fileDownloads.download" }}</th>
+            <th>{{ .L.T "fileDownloads.time" }}</th>
+            <th>{{ .L.T "fileDownloads.downloaderIp" }}</th>
+            <th>{{ .L.T "fileDownloads.browser" }}</th>
+            <th>{{ .L.T "fileDownloads.platform" }}</th>
           </tr>
         </thead>
         <tbody>
@@ -74,11 +74,13 @@
       </table>
     </div>
   {{ else }}
-    <p>No downloads yet.</p>
+    <p>{{ .L.T "fileDownloads.noneYet" }}</p>
   {{ end }}
 
 
   <div class="mt-3">
-    <button class="btn btn-outline-primary" id="close-btn">Close</button>
+    <button class="btn btn-outline-primary" id="close-btn">
+      {{ .L.T "common.close" }}
+    </button>
   </div>
 {{ end }}

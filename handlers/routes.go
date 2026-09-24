@@ -6,8 +6,8 @@ func (s *Server) routes() {
 	s.router.Use(s.loadSession)
 
 	s.router.HandleFunc("/api/auth", s.authDelete()).Methods(http.MethodDelete)
+	s.router.HandleFunc("/api/language", s.languagePut()).Methods(http.MethodPut)
 	s.router.HandleFunc("/oidc/login", s.oidcLoginGet()).Methods(http.MethodGet)
-	s.router.HandleFunc("/oidc/callback", s.oidcCallbackGet()).Methods(http.MethodGet)
 	s.router.HandleFunc("/api/setup", s.setupPost()).Methods(http.MethodPost)
 	s.router.HandleFunc("/api/setup/test-connection", s.setupTestConnectionPost()).Methods(http.MethodPost)
 
@@ -56,6 +56,7 @@ func (s *Server) routes() {
 
 	authenticatedViews := s.router.PathPrefix("/").Subrouter()
 	authenticatedViews.Use(s.requireAuthentication)
+	authenticatedViews.Use(s.resolveLanguage)
 	authenticatedViews.Use(enforceContentSecurityPolicy)
 	authenticatedViews.HandleFunc("/files", s.fileIndexGet()).Methods(http.MethodGet)
 	authenticatedViews.HandleFunc("/files/{id}/downloads", s.fileDownloadsGet()).Methods(http.MethodGet)
@@ -68,6 +69,7 @@ func (s *Server) routes() {
 	adminViews := s.router.PathPrefix("/").Subrouter()
 	adminViews.Use(s.requireAuthentication)
 	adminViews.Use(s.requireAdmin)
+	adminViews.Use(s.resolveLanguage)
 	adminViews.Use(enforceContentSecurityPolicy)
 	adminViews.HandleFunc("/information", s.systemInformationGet()).Methods(http.MethodGet)
 	adminViews.HandleFunc("/settings", s.settingsGet()).Methods(http.MethodGet)
@@ -75,8 +77,10 @@ func (s *Server) routes() {
 
 	views := s.router.PathPrefix("/").Subrouter()
 	views.Use(upgradeToHttps)
+	views.Use(s.resolveLanguage)
 	views.Use(enforceContentSecurityPolicy)
 	views.HandleFunc("/login", s.authGet()).Methods(http.MethodGet)
+	views.HandleFunc("/oidc/callback", s.oidcCallbackGet()).Methods(http.MethodGet)
 	views.HandleFunc("/setup", s.setupGet()).Methods(http.MethodGet)
 	views.PathPrefix("/g/{guestLinkID}").HandlerFunc(s.guestUploadGet()).Methods(http.MethodGet)
 	views.HandleFunc("/", s.indexGet()).Methods(http.MethodGet)

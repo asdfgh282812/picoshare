@@ -31,7 +31,7 @@ func (s Store) GetSessionUser(hash picoshare.SessionTokenHash) (picoshare.User, 
 	row := s.db.QueryRow(`
 	SELECT
 		users.id, users.oidc_subject, users.username, users.email, users.is_admin,
-		users.creation_time, users.last_login_time
+		users.preferred_language, users.creation_time, users.last_login_time
 	FROM
 		sessions
 	INNER JOIN

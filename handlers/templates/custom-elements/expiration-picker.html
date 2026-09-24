@@ -11,7 +11,7 @@
   />
   <div class="mb-2">
     <input id="expiration" class="form-control" type="text" />
-    <div class="form-text">Expiration date</div>
+    <div class="form-text">{{ .L.T "expirationPicker.date" }}</div>
   </div>
 </template>
 
@@ -20,6 +20,7 @@
   // to export values like a proper JS module, so we import the whole JS file,
   // which populates window.datepicker.
   import "/third-party/js-datepicker@5.18.0/js-datepicker.js";
+  import { t } from "/js/lib/i18n.js";
 
   (function () {
     const template = document.querySelector("#expiration-picker-template");
@@ -90,7 +91,7 @@
               this.elements.expirationInput.setCustomValidity("");
             } else {
               this.elements.expirationInput.setCustomValidity(
-                "Date must be in YYYY-MM-DD format",
+                t("js.invalidDateFormat"),
               );
               this.elements.expirationInput.reportValidity();
             }

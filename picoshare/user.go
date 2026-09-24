@@ -55,13 +55,17 @@ type (
 	}
 
 	User struct {
-		ID        UserID
-		Subject   OIDCSubject
-		Username  Username
-		Email     EmailAddress
-		IsAdmin   bool
-		Created   time.Time
-		LastLogin time.Time
+		ID       UserID
+		Subject  OIDCSubject
+		Username Username
+		Email    EmailAddress
+		IsAdmin  bool
+		// PreferredLanguage is the user's chosen interface language. The zero
+		// value means the user hasn't chosen one, so PicoShare falls back to
+		// their language cookie or the site default.
+		PreferredLanguage Language
+		Created           time.Time
+		LastLogin         time.Time
 	}
 )
 

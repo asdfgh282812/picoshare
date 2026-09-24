@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/mtlynch/picoshare/build"
 	"github.com/mtlynch/picoshare/handlers/parse"
+	"github.com/mtlynch/picoshare/i18n"
 	"github.com/mtlynch/picoshare/picoshare"
 	"github.com/mtlynch/picoshare/store"
 )
@@ -31,6 +33,9 @@ type commonProps struct {
 	IsAdmin         bool
 	Username        string
 	CspNonce        string
+	L               i18n.Localizer
+	Lang            string
+	SupportedLangs  []string
 }
 
 func (s Server) indexGet() http.HandlerFunc {
@@ -44,7 +49,7 @@ func (s Server) indexGet() http.HandlerFunc {
 		renderTemplate(w, t, struct {
 			commonProps
 		}{
-			commonProps: makeCommonProps("PicoShare", r.Context()),
+			commonProps: makeCommonProps("title.index", r.Context()),
 		})
 	}
 }
@@ -54,9 +59,9 @@ func (s Server) guestLinkIndexGet() http.HandlerFunc {
 		"formatDate": func(t time.Time) string {
 			return t.Format(time.DateOnly)
 		},
-		"formatSizeLimit": func(limit picoshare.GuestUploadMaxFileBytes) string {
+		"formatSizeLimit": func(limit picoshare.GuestUploadMaxFileBytes, l i18n.Localizer) string {
 			if limit == picoshare.GuestUploadUnlimitedFileSize {
-				return "Unlimited"
+				return l.T("common.unlimited")
 			}
 			b := uint64(*limit)
 			const unit = 1024
@@ -71,24 +76,25 @@ func (s Server) guestLinkIndexGet() http.HandlerFunc {
 			}
 			return fmt.Sprintf("%.2f %cB", float64(b)/float64(div), "kMGTPE"[exp])
 		},
-		"formatCountLimit": func(limit picoshare.GuestUploadCountLimit) string {
+		"formatCountLimit": func(limit picoshare.GuestUploadCountLimit, l i18n.Localizer) string {
 			if limit == picoshare.GuestUploadUnlimitedFileUploads {
-				return "Unlimited"
+				return l.T("common.unlimited")
 			}
 			return fmt.Sprintf("%d", int(*limit))
 		},
-		"formatExpiration": func(et picoshare.ExpirationTime) string {
+		"formatExpiration": func(et picoshare.ExpirationTime, l i18n.Localizer) string {
 			if et == picoshare.NeverExpire {
-				return "Never"
+				return l.T("lifetime.never")
 			}
 			t := time.Time(et)
 			delta := t.Sub(s.now())
-			suffix := ""
+			days := math.Abs(delta.Hours()) / 24
 			if delta.Seconds() < 0 {
-				suffix = " ago"
+				return l.T("expiration.withDaysAgo", t.Format(time.DateOnly), days)
 			}
-			return fmt.Sprintf("%s (%.0f days%s)", t.Format(time.DateOnly), math.Abs(delta.Hours())/24, suffix)
+			return l.T("expiration.withDays", t.Format(time.DateOnly), days)
 		},
+		"friendlyLifetime": friendlyLifetimeName,
 	}
 
 	t := parseTemplatesWithFuncs(fns, "templates/pages/guest-link-index.html")
@@ -109,7 +115,7 @@ func (s Server) guestLinkIndexGet() http.HandlerFunc {
 			commonProps
 			GuestLinks []picoshare.GuestLink
 		}{
-			commonProps: makeCommonProps("PicoShare - Guest Links", r.Context()),
+			commonProps: makeCommonProps("title.guestLinks", r.Context()),
 			GuestLinks:  links,
 		})
 	}
@@ -123,11 +129,13 @@ func (s Server) guestLinksNewGet() http.HandlerFunc {
 		"formatLifetime": func(flt picoshare.FileLifetime) string {
 			return flt.String()
 		},
+		"friendlyLifetime": friendlyLifetimeName,
 	}
 
 	t := parseTemplatesWithFuncs(fns, "templates/pages/guest-link-create.html")
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		l := localizerFromContext(r.Context())
 		type expirationOption struct {
 			FriendlyName string
 			Expiration   time.Time
@@ -142,13 +150,13 @@ func (s Server) guestLinksNewGet() http.HandlerFunc {
 			ExpirationOptions   []expirationOption
 			FileLifetimeOptions []fileLifetimeOption
 		}{
-			commonProps: makeCommonProps("PicoShare - New Guest Link", r.Context()),
+			commonProps: makeCommonProps("title.guestLinkNew", r.Context()),
 			ExpirationOptions: []expirationOption{
-				{"1 day", s.now().AddDate(0, 0, 1), false},
-				{"7 days", s.now().AddDate(0, 0, 7), false},
-				{"30 days", s.now().AddDate(0, 0, 30), false},
-				{"1 year", s.now().AddDate(1, 0, 0), false},
-				{"Never", time.Time(picoshare.NeverExpire), true},
+				{friendlyLifetimeName(picoshare.NewFileLifetimeInDays(1), l), s.now().AddDate(0, 0, 1), false},
+				{friendlyLifetimeName(picoshare.NewFileLifetimeInDays(7), l), s.now().AddDate(0, 0, 7), false},
+				{friendlyLifetimeName(picoshare.NewFileLifetimeInDays(30), l), s.now().AddDate(0, 0, 30), false},
+				{friendlyLifetimeName(picoshare.NewFileLifetimeInYears(1), l), s.now().AddDate(1, 0, 0), false},
+				{friendlyLifetimeName(picoshare.FileLifetimeInfinite, l), time.Time(picoshare.NeverExpire), true},
 			},
 			FileLifetimeOptions: []fileLifetimeOption{
 				{picoshare.NewFileLifetimeInDays(1), false},
@@ -166,21 +174,21 @@ func (s Server) fileIndexGet() http.HandlerFunc {
 		"formatDate": func(t time.Time) string {
 			return t.Format(time.DateOnly)
 		},
-		"formatExpiration": func(et picoshare.ExpirationTime) string {
+		"formatExpiration": func(et picoshare.ExpirationTime, l i18n.Localizer) string {
 			if et == picoshare.NeverExpire {
-				return "Never"
+				return l.T("lifetime.never")
 			}
 			t := et.Time().Local()
 			delta := t.Sub(s.now())
 			daysRemaining := delta.Hours() / 24
-			return fmt.Sprintf("%s (%.0f days)", t.Format(time.DateOnly), daysRemaining)
+			return l.T("expiration.withDays", t.Format(time.DateOnly), daysRemaining)
 		},
 		"formatFileSize": humanReadableFileSize,
 	}
 
 	t := parseTemplatesWithFuncs(fns, "templates/pages/file-index.html")
 
-	return s.fileIndexGetWithOptions(t, "PicoShare - Files", false, func(ctx context.Context) []store.ReadEntriesOption {
+	return s.fileIndexGetWithOptions(t, "title.files", false, func(ctx context.Context) []store.ReadEntriesOption {
 		user, _ := currentUser(ctx)
 		return []store.ReadEntriesOption{store.FilterByOwner(user.ID)}
 	})
@@ -193,26 +201,26 @@ func (s Server) fileAllGet() http.HandlerFunc {
 		"formatDate": func(t time.Time) string {
 			return t.Format(time.DateOnly)
 		},
-		"formatExpiration": func(et picoshare.ExpirationTime) string {
+		"formatExpiration": func(et picoshare.ExpirationTime, l i18n.Localizer) string {
 			if et == picoshare.NeverExpire {
-				return "Never"
+				return l.T("lifetime.never")
 			}
 			t := et.Time().Local()
 			delta := t.Sub(s.now())
 			daysRemaining := delta.Hours() / 24
-			return fmt.Sprintf("%s (%.0f days)", t.Format(time.DateOnly), daysRemaining)
+			return l.T("expiration.withDays", t.Format(time.DateOnly), daysRemaining)
 		},
 		"formatFileSize": humanReadableFileSize,
 	}
 
 	t := parseTemplatesWithFuncs(fns, "templates/pages/file-index.html")
 
-	return s.fileIndexGetWithOptions(t, "PicoShare - All Files", true, func(context.Context) []store.ReadEntriesOption {
+	return s.fileIndexGetWithOptions(t, "title.allFiles", true, func(context.Context) []store.ReadEntriesOption {
 		return nil
 	})
 }
 
-func (s Server) fileIndexGetWithOptions(t *template.Template, title string, showOwner bool, optsFromContext func(context.Context) []store.ReadEntriesOption) http.HandlerFunc {
+func (s Server) fileIndexGetWithOptions(t *template.Template, titleKey string, showOwner bool, optsFromContext func(context.Context) []store.ReadEntriesOption) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		em, err := s.store.GetEntriesMetadata(optsFromContext(r.Context())...)
 		if err != nil {
@@ -228,7 +236,7 @@ func (s Server) fileIndexGetWithOptions(t *template.Template, title string, show
 			Files     []picoshare.UploadMetadata
 			ShowOwner bool
 		}{
-			commonProps: makeCommonProps(title, r.Context()),
+			commonProps: makeCommonProps(titleKey, r.Context()),
 			Files:       em,
 			ShowOwner:   showOwner,
 		})
@@ -240,9 +248,9 @@ func (s Server) fileEditGet() http.HandlerFunc {
 		"isNeverExpire": func(et picoshare.ExpirationTime) bool {
 			return et == picoshare.NeverExpire
 		},
-		"formatExpiration": func(et picoshare.ExpirationTime) string {
+		"formatExpiration": func(et picoshare.ExpirationTime, l i18n.Localizer) string {
 			if et == picoshare.NeverExpire {
-				return "Never"
+				return l.T("lifetime.never")
 			}
 			return time.Time(et).Format(time.RFC3339)
 		},
@@ -270,7 +278,7 @@ func (s Server) fileEditGet() http.HandlerFunc {
 			Metadata            picoshare.UploadMetadata
 			MaxPassphraseLength int
 		}{
-			commonProps:         makeCommonProps("PicoShare - Edit", r.Context()),
+			commonProps:         makeCommonProps("title.fileEdit", r.Context()),
 			Metadata:            metadata,
 			MaxPassphraseLength: picoshare.MaxPassphraseLength,
 		})
@@ -279,14 +287,14 @@ func (s Server) fileEditGet() http.HandlerFunc {
 
 func (s Server) fileInfoGet() http.HandlerFunc {
 	fns := template.FuncMap{
-		"formatExpiration": func(et picoshare.ExpirationTime) string {
+		"formatExpiration": func(et picoshare.ExpirationTime, l i18n.Localizer) string {
 			if et == picoshare.NeverExpire {
-				return "Never"
+				return l.T("lifetime.never")
 			}
 			t := et.Time().Local()
 			delta := t.Sub(s.now())
 			daysRemaining := delta.Hours() / 24
-			return fmt.Sprintf("%s (%.0f days)", t.Format(time.DateOnly), daysRemaining)
+			return l.T("expiration.withDays", t.Format(time.DateOnly), daysRemaining)
 		},
 		"formatTimestamp": func(t time.Time) string {
 			return t.Format(time.RFC3339)
@@ -325,7 +333,7 @@ func (s Server) fileInfoGet() http.HandlerFunc {
 			Metadata      picoshare.UploadMetadata
 			DownloadCount int
 		}{
-			commonProps:   makeCommonProps("PicoShare - File Information", r.Context()),
+			commonProps:   makeCommonProps("title.fileInfo", r.Context()),
 			Metadata:      metadata,
 			DownloadCount: len(downloads),
 		})
@@ -403,7 +411,7 @@ func (s Server) fileDownloadsGet() http.HandlerFunc {
 			Downloads      []downloadRecord
 			ShowUniqueOnly bool
 		}{
-			commonProps:    makeCommonProps("PicoShare - Downloads", r.Context()),
+			commonProps:    makeCommonProps("title.fileDownloads", r.Context()),
 			Metadata:       metadata,
 			Downloads:      records,
 			ShowUniqueOnly: showUniqueOnly,
@@ -430,7 +438,7 @@ func (s Server) fileConfirmDeleteGet() http.HandlerFunc {
 			commonProps
 			Metadata picoshare.UploadMetadata
 		}{
-			commonProps: makeCommonProps("PicoShare - Delete", r.Context()),
+			commonProps: makeCommonProps("title.fileDelete", r.Context()),
 			Metadata:    metadata,
 		})
 	}
@@ -446,13 +454,19 @@ type authPageProps struct {
 	LoginError      string
 }
 
-func (s Server) authPageProps(ctx context.Context, loginError string) (authPageProps, error) {
+// authPageProps builds the login page's data. loginErrorKey is an i18n
+// message key, or empty for no error.
+func (s Server) authPageProps(ctx context.Context, loginErrorKey string) (authPageProps, error) {
 	needsSetup, err := s.store.NeedsSetup()
 	if err != nil {
 		return authPageProps{}, err
 	}
+	loginError := ""
+	if loginErrorKey != "" {
+		loginError = localizerFromContext(ctx).T(loginErrorKey)
+	}
 	return authPageProps{
-		commonProps:     makeCommonProps("PicoShare - Log in", ctx),
+		commonProps:     makeCommonProps("title.login", ctx),
 		NeedsSetup:      needsSetup,
 		DevLoginEnabled: devLoginEnabled,
 		LoginError:      loginError,
@@ -468,12 +482,12 @@ func (s Server) authGet() http.HandlerFunc {
 			return
 		}
 
-		var loginError string
+		var loginErrorKey string
 		if r.URL.Query().Get("error") == "not_configured" {
-			loginError = "Single sign-on is not configured yet."
+			loginErrorKey = "auth.notConfigured"
 		}
 
-		props, err := s.authPageProps(r.Context(), loginError)
+		props, err := s.authPageProps(r.Context(), loginErrorKey)
 		if err != nil {
 			log.Printf("failed to check setup status: %v", err)
 			http.Error(w, "Failed to check setup status", http.StatusInternalServerError)
@@ -507,6 +521,7 @@ func (s Server) uploadGet() http.HandlerFunc {
 			http.Error(w, fmt.Sprintf("failed to read settings from database: %v", err), http.StatusInternalServerError)
 			return
 		}
+		l := localizerFromContext(r.Context())
 		type lifetimeOption struct {
 			Lifetime  picoshare.FileLifetime
 			IsDefault bool
@@ -542,7 +557,7 @@ func (s Server) uploadGet() http.HandlerFunc {
 		}
 		expirationOptions := []expirationOption{}
 		for _, lto := range lifetimeOptions {
-			friendlyName := lto.Lifetime.FriendlyName()
+			friendlyName := friendlyLifetimeName(lto.Lifetime, l)
 			expiration := lto.Lifetime.ExpirationFromTime(s.now())
 			if lto.Lifetime.Equal(picoshare.FileLifetimeInfinite) {
 				expiration = picoshare.NeverExpire
@@ -554,7 +569,7 @@ func (s Server) uploadGet() http.HandlerFunc {
 			})
 		}
 
-		expirationOptions = append(expirationOptions, expirationOption{"Custom", time.Time{}, false})
+		expirationOptions = append(expirationOptions, expirationOption{l.T("lifetime.custom"), time.Time{}, false})
 
 		renderTemplate(w, t, struct {
 			commonProps
@@ -563,7 +578,7 @@ func (s Server) uploadGet() http.HandlerFunc {
 			MaxPassphraseLength int
 			GuestLinkMetadata   picoshare.GuestLink
 		}{
-			commonProps:         makeCommonProps("PicoShare - Upload", r.Context()),
+			commonProps:         makeCommonProps("title.upload", r.Context()),
 			MaxNoteLength:       parse.MaxFileNoteBytes,
 			MaxPassphraseLength: picoshare.MaxPassphraseLength,
 			ExpirationOptions:   expirationOptions,
@@ -608,7 +623,7 @@ func (s Server) guestUploadGet() http.HandlerFunc {
 			renderTemplate(w, tInactive, struct {
 				commonProps
 			}{
-				commonProps: makeCommonProps("PicoShare - Guest Link Inactive", r.Context()),
+				commonProps: makeCommonProps("title.guestLinkInactive", r.Context()),
 			})
 			return
 		}
@@ -649,9 +664,10 @@ func (s Server) guestUploadGet() http.HandlerFunc {
 		}
 
 		// Convert to expiration options.
+		l := localizerFromContext(r.Context())
 		expirationOptions := []expirationOption{}
 		for _, lto := range validLifetimeOptions {
-			friendlyName := lto.Lifetime.FriendlyName()
+			friendlyName := friendlyLifetimeName(lto.Lifetime, l)
 			expiration := lto.Lifetime.ExpirationFromTime(s.now())
 			if lto.Lifetime.Equal(picoshare.FileLifetimeInfinite) {
 				expiration = picoshare.NeverExpire
@@ -668,7 +684,7 @@ func (s Server) guestUploadGet() http.HandlerFunc {
 			ExpirationOptions []expirationOption
 			GuestLinkMetadata picoshare.GuestLink
 		}{
-			commonProps:       makeCommonProps("PicoShare - Upload", r.Context()),
+			commonProps:       makeCommonProps("title.upload", r.Context()),
 			ExpirationOptions: expirationOptions,
 			GuestLinkMetadata: gl,
 		})
@@ -715,14 +731,16 @@ func (s Server) settingsGet() http.HandlerFunc {
 			DownloadHistoryRetentionDays    uint16
 			MaxDownloadHistoryRetentionDays uint16
 			KeepDownloadHistoryForever      bool
+			DefaultLanguage                 string
 		}{
-			commonProps:                     makeCommonProps("PicoShare - Settings", r.Context()),
+			commonProps:                     makeCommonProps("title.settings", r.Context()),
 			DefaultExpiration:               defaultExpiration,
 			ExpirationTimeUnit:              expirationTimeUnit,
 			DefaultNeverExpire:              defaultNeverExpire,
 			DownloadHistoryRetentionDays:    downloadHistoryRetentionDays,
 			MaxDownloadHistoryRetentionDays: picoshare.MaxDownloadHistoryRetentionDays,
 			KeepDownloadHistoryForever:      keepDownloadHistoryForever,
+			DefaultLanguage:                 settings.DefaultLanguage.String(),
 		})
 	}
 }
@@ -766,7 +784,7 @@ func (s Server) systemInformationGet() http.HandlerFunc {
 			Version           string
 			Revision          string
 		}{
-			commonProps:       makeCommonProps("PicoShare - System Information", r.Context()),
+			commonProps:       makeCommonProps("title.systemInformation", r.Context()),
 			TotalServingBytes: spaceUsage.TotalServingBytes,
 			DatabaseFileBytes: spaceUsage.DatabaseFileSize,
 			ReclaimableBytes:  reclaimableBytes,
@@ -785,6 +803,27 @@ func humanReadableFileSize(fileSize picoshare.FileSize) string {
 	return humanReadableDiskUsage(fileSize.UInt64())
 }
 
+// friendlyLifetimeName renders lt as localized display text, such as "3
+// days" or "永不過期". It lives here, rather than on the domain type, because
+// the domain layer doesn't produce user-facing strings.
+func friendlyLifetimeName(lt picoshare.FileLifetime, l i18n.Localizer) string {
+	if lt.Equal(picoshare.FileLifetimeInfinite) {
+		return l.T("lifetime.never")
+	}
+	if lt.IsYearBoundary() {
+		years := lt.Years()
+		if years == 1 {
+			return l.T("lifetime.year", years)
+		}
+		return l.T("lifetime.years", years)
+	}
+	days := lt.Days()
+	if days == 1 {
+		return l.T("lifetime.day", days)
+	}
+	return l.T("lifetime.days", days)
+}
+
 func humanReadableDiskUsage(b uint64) string {
 	const unit = 1024
 
@@ -799,14 +838,21 @@ func humanReadableDiskUsage(b uint64) string {
 	return fmt.Sprintf("%.2f %cB", float64(b)/float64(div), "kMGTPE"[exp])
 }
 
-func makeCommonProps(title string, ctx context.Context) commonProps {
+// makeCommonProps builds the template data every page needs. titleKey is an
+// i18n message key, not literal text, so the rendered title follows the
+// request's resolved language.
+func makeCommonProps(titleKey string, ctx context.Context) commonProps {
 	user, ok := currentUser(ctx)
+	l := localizerFromContext(ctx)
 	return commonProps{
-		Title:           title,
+		Title:           l.T(titleKey),
 		IsAuthenticated: ok,
 		IsAdmin:         user.IsAdmin,
 		Username:        user.Username.String(),
 		CspNonce:        cspNonce(ctx),
+		L:               l,
+		Lang:            l.Lang(),
+		SupportedLangs:  i18n.SupportedLanguages,
 	}
 }
 
@@ -829,10 +875,48 @@ func parseTemplates(templatePaths ...string) *template.Template {
 	return parseTemplatesWithFuncs(template.FuncMap{}, templatePaths...)
 }
 
+// baseFuncs are available to every template, on top of whatever
+// page-specific functions parseTemplatesWithFuncs is called with.
+var baseFuncs = template.FuncMap{
+	// toJSON embeds a Go value as a JSON literal in a template, such as the
+	// client-side translations base.html embeds for static/js/lib/i18n.js.
+	"toJSON": func(v any) (template.JS, error) {
+		b, err := json.Marshal(v)
+		if err != nil {
+			return "", err
+		}
+		return template.JS(b), nil
+	},
+	// dict builds a map from alternating string keys and values, for passing
+	// more than one value into a {{ template }} invocation, which otherwise
+	// only accepts a single pipeline argument.
+	"dict": func(pairs ...any) (map[string]any, error) {
+		if len(pairs)%2 != 0 {
+			return nil, fmt.Errorf("dict requires an even number of arguments")
+		}
+		m := make(map[string]any, len(pairs)/2)
+		for i := 0; i < len(pairs); i += 2 {
+			key, ok := pairs[i].(string)
+			if !ok {
+				return nil, fmt.Errorf("dict keys must be strings, got %T", pairs[i])
+			}
+			m[key] = pairs[i+1]
+		}
+		return m, nil
+	},
+}
+
 func parseTemplatesWithFuncs(fns template.FuncMap, templatePaths ...string) *template.Template {
+	merged := template.FuncMap{}
+	for k, v := range baseFuncs {
+		merged[k] = v
+	}
+	for k, v := range fns {
+		merged[k] = v
+	}
 	return template.Must(
 		template.New("base.html").
-			Funcs(fns).
+			Funcs(merged).
 			ParseFS(
 				templatesFS,
 				append(
