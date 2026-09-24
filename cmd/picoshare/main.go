@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -17,8 +16,7 @@ import (
 
 	"github.com/mtlynch/picoshare/garbagecollect"
 	"github.com/mtlynch/picoshare/handlers"
-	"github.com/mtlynch/picoshare/handlers/auth/shared_secret"
-	"github.com/mtlynch/picoshare/picoshare"
+	"github.com/mtlynch/picoshare/handlers/auth/oidcauth"
 	"github.com/mtlynch/picoshare/space"
 	"github.com/mtlynch/picoshare/store/sqlite"
 )
@@ -28,16 +26,12 @@ func main() {
 	log.Print("starting picoshare server")
 
 	dbPath := flag.String("db", "data/store.db", "path to database")
+	resetOIDC := flag.Bool("reset-oidc", false, "clear the configured identity provider and print a new setup token, then exit")
 	flag.Parse()
 
 	dbDir := filepath.Dir(*dbPath)
 
 	ensureDirExists(dbDir)
-
-	authenticator, err := sharedSecretFromEnv()
-	if err != nil {
-		log.Fatalf("failed to read shared secret: %v", err)
-	}
 
 	store := sqlite.New(sqlite.Params{
 		Path:                  *dbPath,
@@ -45,13 +39,30 @@ func main() {
 		Now:                   time.Now,
 	})
 
+	if *resetOIDC {
+		runResetOIDC(&store)
+		return
+	}
+
+	if err := ensureSetupToken(&store); err != nil {
+		log.Fatalf("failed to prepare setup token: %v", err)
+	}
+
+	identityProvider := oidcauth.New(&store, time.Now)
+
 	spaceChecker := space.NewChecker(*dbPath, &store)
 
 	collector := garbagecollect.NewCollector(store, time.Now)
 	gc := garbagecollect.NewScheduler(&collector, 7*time.Hour)
 	gc.StartAsync()
 
-	server := handlers.New(authenticator, &store, spaceChecker.Check, &collector, time.Now)
+	server := handlers.New(handlers.Params{
+		IdentityProvider: identityProvider,
+		Store:            &store,
+		CheckSpace:       spaceChecker.Check,
+		Collector:        &collector,
+		Now:              time.Now,
+	})
 
 	// CrossOriginProtection rejects non-safe cross-origin requests to prevent CSRF.
 	protectedRouter := http.NewCrossOriginProtection().Handler(server.Router())
@@ -84,34 +95,42 @@ func main() {
 	}
 }
 
-func sharedSecretFromEnv() (shared_secret.SharedSecretAuthenticator, error) {
-	if path := os.Getenv("PS_SHARED_SECRET_FILE"); path != "" {
-		return sharedSecretFromFile(path)
-	}
-	secret := os.Getenv("PS_SHARED_SECRET")
-	if secret == "" {
-		return shared_secret.SharedSecretAuthenticator{},
-			fmt.Errorf("PS_SHARED_SECRET or PS_SHARED_SECRET_FILE must be set")
-	}
-	passphrase, err := picoshare.NewPassphrase(secret)
+// ensureSetupToken prints a fresh setup token to the log whenever PicoShare
+// starts without a configured identity provider, so an administrator can
+// complete setup at /setup. It's a no-op once setup is complete.
+func ensureSetupToken(store *sqlite.Store) error {
+	needsSetup, err := store.NeedsSetup()
 	if err != nil {
-		return shared_secret.SharedSecretAuthenticator{}, fmt.Errorf("invalid PS_SHARED_SECRET: %w", err)
+		return err
 	}
-	return shared_secret.New(passphrase), nil
+	if !needsSetup {
+		return nil
+	}
+
+	token, err := store.GenerateSetupToken()
+	if err != nil {
+		return err
+	}
+	log.Printf("=================================================================")
+	log.Printf("PicoShare has no identity provider configured yet.")
+	log.Printf("Visit /setup and enter this one-time setup token: %s", token.String())
+	log.Printf("=================================================================")
+	return nil
 }
 
-func sharedSecretFromFile(path string) (shared_secret.SharedSecretAuthenticator, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return shared_secret.SharedSecretAuthenticator{}, fmt.Errorf("failed to read PS_SHARED_SECRET_FILE: %w", err)
+// runResetOIDC clears PicoShare's identity provider configuration and prints
+// a new setup token, for administrators locked out by a misconfiguration.
+func runResetOIDC(store *sqlite.Store) {
+	if err := store.ClearOIDCSettings(); err != nil {
+		log.Fatalf("failed to clear OIDC settings: %v", err)
 	}
-
-	stripped := strings.TrimRight(string(data), "\r\n")
-	passphrase, err := picoshare.NewPassphrase(stripped)
+	token, err := store.GenerateSetupToken()
 	if err != nil {
-		return shared_secret.SharedSecretAuthenticator{}, fmt.Errorf("invalid PS_SHARED_SECRET_FILE: %w", err)
+		log.Fatalf("failed to generate a new setup token: %v", err)
 	}
-	return shared_secret.New(passphrase), nil
+	log.Printf("Cleared identity provider configuration.")
+	log.Printf("Setup token: %s", token.String())
+	log.Printf("Start PicoShare normally and visit /setup to reconfigure single sign-on.")
 }
 
 func ensureDirExists(dir string) {

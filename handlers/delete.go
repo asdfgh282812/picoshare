@@ -19,6 +19,10 @@ func (s Server) entryDelete() http.HandlerFunc {
 			return
 		}
 
+		if _, ok := s.manageableEntry(w, r, id); !ok {
+			return
+		}
+
 		err = s.store.DeleteEntry(id)
 		if err != nil {
 			log.Printf("failed to delete entry %v: %v", id, err)

@@ -3,9 +3,13 @@ package handlers
 import "net/http"
 
 func (s *Server) routes() {
-	s.router.HandleFunc("/api/auth", s.authPost()).Methods(http.MethodPost)
+	s.router.Use(s.loadSession)
+
 	s.router.HandleFunc("/api/auth", s.authDelete()).Methods(http.MethodDelete)
-	s.router.Use(s.checkAuthentication)
+	s.router.HandleFunc("/oidc/login", s.oidcLoginGet()).Methods(http.MethodGet)
+	s.router.HandleFunc("/oidc/callback", s.oidcCallbackGet()).Methods(http.MethodGet)
+	s.router.HandleFunc("/api/setup", s.setupPost()).Methods(http.MethodPost)
+	s.router.HandleFunc("/api/setup/test-connection", s.setupTestConnectionPost()).Methods(http.MethodPost)
 
 	authenticatedApis := s.router.PathPrefix("/api").Subrouter()
 	authenticatedApis.Use(s.requireAuthentication)
@@ -16,8 +20,15 @@ func (s *Server) routes() {
 	authenticatedApis.HandleFunc("/guest-links/{id}", s.guestLinksDelete()).Methods(http.MethodDelete)
 	authenticatedApis.HandleFunc("/guest-links/{id}/enable", s.guestLinksEnableDisable()).Methods(http.MethodPut)
 	authenticatedApis.HandleFunc("/guest-links/{id}/disable", s.guestLinksEnableDisable()).Methods(http.MethodPut)
-	authenticatedApis.HandleFunc("/settings", s.settingsPut()).Methods(http.MethodPut)
-	authenticatedApis.HandleFunc("/maintenance/cleanup", s.cleanupPost()).Methods(http.MethodPost)
+
+	adminApis := s.router.PathPrefix("/api").Subrouter()
+	adminApis.Use(s.requireAuthentication)
+	adminApis.Use(s.requireAdmin)
+	adminApis.HandleFunc("/settings", s.settingsPut()).Methods(http.MethodPut)
+	adminApis.HandleFunc("/maintenance/cleanup", s.cleanupPost()).Methods(http.MethodPost)
+	adminApis.HandleFunc("/admin/oidc-settings", s.adminOIDCSettingsGet()).Methods(http.MethodGet)
+	adminApis.HandleFunc("/admin/oidc-settings", s.adminOIDCSettingsPut()).Methods(http.MethodPut)
+	adminApis.HandleFunc("/admin/oidc-settings/test-connection", s.adminOIDCSettingsTestConnectionPost()).Methods(http.MethodPost)
 
 	publicApis := s.router.PathPrefix("/api").Subrouter()
 	publicApis.HandleFunc("/guest/{guestLinkID}", s.guestEntryPost()).Methods(http.MethodPost)
@@ -46,7 +57,6 @@ func (s *Server) routes() {
 	authenticatedViews := s.router.PathPrefix("/").Subrouter()
 	authenticatedViews.Use(s.requireAuthentication)
 	authenticatedViews.Use(enforceContentSecurityPolicy)
-	authenticatedViews.HandleFunc("/information", s.systemInformationGet()).Methods(http.MethodGet)
 	authenticatedViews.HandleFunc("/files", s.fileIndexGet()).Methods(http.MethodGet)
 	authenticatedViews.HandleFunc("/files/{id}/downloads", s.fileDownloadsGet()).Methods(http.MethodGet)
 	authenticatedViews.HandleFunc("/files/{id}/edit", s.fileEditGet()).Methods(http.MethodGet)
@@ -54,12 +64,20 @@ func (s *Server) routes() {
 	authenticatedViews.HandleFunc("/files/{id}/confirm-delete", s.fileConfirmDeleteGet()).Methods(http.MethodGet)
 	authenticatedViews.HandleFunc("/guest-links", s.guestLinkIndexGet()).Methods(http.MethodGet)
 	authenticatedViews.HandleFunc("/guest-links/new", s.guestLinksNewGet()).Methods(http.MethodGet)
-	authenticatedViews.HandleFunc("/settings", s.settingsGet()).Methods(http.MethodGet)
+
+	adminViews := s.router.PathPrefix("/").Subrouter()
+	adminViews.Use(s.requireAuthentication)
+	adminViews.Use(s.requireAdmin)
+	adminViews.Use(enforceContentSecurityPolicy)
+	adminViews.HandleFunc("/information", s.systemInformationGet()).Methods(http.MethodGet)
+	adminViews.HandleFunc("/settings", s.settingsGet()).Methods(http.MethodGet)
+	adminViews.HandleFunc("/files/all", s.fileAllGet()).Methods(http.MethodGet)
 
 	views := s.router.PathPrefix("/").Subrouter()
 	views.Use(upgradeToHttps)
 	views.Use(enforceContentSecurityPolicy)
 	views.HandleFunc("/login", s.authGet()).Methods(http.MethodGet)
+	views.HandleFunc("/setup", s.setupGet()).Methods(http.MethodGet)
 	views.PathPrefix("/g/{guestLinkID}").HandlerFunc(s.guestUploadGet()).Methods(http.MethodGet)
 	views.HandleFunc("/", s.indexGet()).Methods(http.MethodGet)
 	// The unlock route must precede the /-{id} prefix routes below, which would

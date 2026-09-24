@@ -1,76 +1,53 @@
-{{ define "script-tags" }}
-  <script type="module" nonce="{{ .CspNonce }}">
-    import { authenticate, logOut } from "/js/controllers/auth.js";
-
-    function setAuthFormState(isEnabled) {
-      document.querySelectorAll("#auth-form input").forEach((el) => {
-        el.disabled = !isEnabled;
-      });
-    }
-
-    function disableAuthForm() {
-      setAuthFormState(/* isEnabled= */ false);
-    }
-
-    function enableAuthForm() {
-      setAuthFormState(/* isEnabled= */ true);
-    }
-
-    const errorContainer = document.getElementById("error");
-    const authForm = document.getElementById("auth-form");
-    authForm.addEventListener("submit", (evt) => {
-      evt.preventDefault();
-      const secret = document.getElementById("secret").value;
-      errorContainer.classList.add("d-none");
-      disableAuthForm();
-      authenticate(secret)
-        .then(() => {
-          document.location = "/";
-        })
-        .catch((error) => {
-          logOut();
-          document.getElementById("error-message").innerText = error;
-          errorContainer.classList.remove("d-none");
-          enableAuthForm();
-        });
-    });
-  </script>
-{{ end }}
-
 {{ define "content" }}
   <h1 class="h1">Log In</h1>
 
-  <form id="auth-form" class="mb-2" action="/auth">
-    <div class="mb-3">
-      <label class="form-label">Passphrase</label>
-      <div>
-        <input
-          class="form-control"
-          id="secret"
-          type="password"
-          required
-          autofocus
-          placeholder="Passphrase"
-        />
+  {{ if .LoginError }}
+    <div id="error" class="my-3">
+      <div class="alert alert-danger" role="alert">
+        <div id="error-message">{{ .LoginError }}</div>
       </div>
     </div>
-    <div>
-      <input class="btn btn-primary" type="submit" value="Authenticate" />
-    </div>
-  </form>
+  {{ end }}
 
-  <div id="error" class="d-none">
-    <div class="alert alert-danger" role="alert">
-      <div id="error-message">Placeholder error.</div>
+  {{ if .NeedsSetup }}
+    <div class="alert alert-info" role="alert">
+      Single sign-on hasn't been configured yet.
+      <a href="/setup">Complete setup</a> to log in.
     </div>
-  </div>
+  {{ else }}
+    <a class="btn btn-primary" role="menuitem" href="/oidc/login">
+      Log in with Synology
+    </a>
+  {{ end }}
 
-  <div class="mt-4">
-    <h3>Don't know the password?</h3>
-    <p>
-      Visit our
-      <a href="https://github.com/mtlynch/picoshare">GitHub repo</a> to create
-      your own PicoShare server.
-    </p>
-  </div>
+  {{ if .DevLoginEnabled }}
+    <div class="mt-4">
+      <h3>Dev login</h3>
+      <p>Development builds skip the identity provider entirely.</p>
+      <form
+        id="dev-login-form"
+        class="row row-cols-auto g-2 align-items-center"
+        action="/api/debug/login"
+        method="post"
+      >
+        <div class="col">
+          <label class="visually-hidden" for="dev-login-username"
+            >Username</label
+          >
+          <input
+            class="form-control"
+            id="dev-login-username"
+            name="username"
+            type="text"
+            required
+            autofocus
+            placeholder="Username"
+          />
+        </div>
+        <div class="col">
+          <input class="btn btn-secondary" type="submit" value="Dev log in" />
+        </div>
+      </form>
+    </div>
+  {{ end }}
 {{ end }}

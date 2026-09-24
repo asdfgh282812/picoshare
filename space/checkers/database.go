@@ -6,11 +6,12 @@ import (
 	"math/big"
 
 	"github.com/mtlynch/picoshare/picoshare"
+	"github.com/mtlynch/picoshare/store"
 )
 
 type (
 	DatabaseMetadataReader interface {
-		GetEntriesMetadata() ([]picoshare.UploadMetadata, error)
+		GetEntriesMetadata(...store.ReadEntriesOption) ([]picoshare.UploadMetadata, error)
 	}
 
 	DatabaseChecker struct {

@@ -15,21 +15,10 @@ import (
 	"time"
 
 	"github.com/mtlynch/picoshare/handlers"
-	"github.com/mtlynch/picoshare/handlers/auth/shared_secret"
 	"github.com/mtlynch/picoshare/handlers/parse"
 	"github.com/mtlynch/picoshare/picoshare"
 	"github.com/mtlynch/picoshare/store/test_sqlite"
 )
-
-type mockAuthenticator struct{}
-
-func (ma mockAuthenticator) StartSession(w http.ResponseWriter, r *http.Request) {}
-
-func (ma mockAuthenticator) ClearSession(w http.ResponseWriter) {}
-
-func (ma mockAuthenticator) Authenticate(r *http.Request) bool {
-	return true
-}
 
 func TestEntryPost(t *testing.T) {
 	for _, tt := range []struct {
@@ -111,7 +100,8 @@ func TestEntryPost(t *testing.T) {
 	} {
 		t.Run(tt.description, func(t *testing.T) {
 			dataStore := test_sqlite.New(t)
-			s := handlers.New(mockAuthenticator{}, &dataStore, nilSpaceCheckFunc, nilGarbageCollector, time.Now)
+			loginCookie := mustLoginAsAdmin(t, &dataStore, time.Now())
+			s := handlers.New(handlers.Params{Store: &dataStore, CheckSpace: nilSpaceCheckFunc, Collector: nilGarbageCollector, Now: time.Now})
 
 			formData, contentType := createMultipartFormBody(tt.filename, tt.note, tt.downloadPassphrase, bytes.NewBuffer([]byte(tt.contents)))
 
@@ -121,6 +111,7 @@ func TestEntryPost(t *testing.T) {
 				formData,
 			)
 			req.Header.Add("Content-Type", contentType)
+			req.AddCookie(loginCookie)
 
 			rec := httptest.NewRecorder()
 			s.Router().ServeHTTP(rec, req)
@@ -422,7 +413,8 @@ func TestEntryPut(t *testing.T) {
 				metadata.DownloadPassphrase = mustCreateDownloadPassphrase(t, tt.entryInStore.DownloadPassphrase)
 			}
 			dataStore.InsertEntry(strings.NewReader((originalData)), metadata)
-			s := handlers.New(mockAuthenticator{}, &dataStore, nilSpaceCheckFunc, nilGarbageCollector, time.Now)
+			loginCookie := mustLoginAsAdmin(t, &dataStore, time.Now())
+			s := handlers.New(handlers.Params{Store: &dataStore, CheckSpace: nilSpaceCheckFunc, Collector: nilGarbageCollector, Now: time.Now})
 
 			req := httptest.NewRequest(
 				http.MethodPut,
@@ -430,6 +422,7 @@ func TestEntryPut(t *testing.T) {
 				strings.NewReader(tt.payload),
 			)
 			req.Header.Add("Content-Type", "text/json")
+			req.AddCookie(loginCookie)
 
 			rec := httptest.NewRecorder()
 			s.Router().ServeHTTP(rec, req)
@@ -460,12 +453,6 @@ func TestEntryPut(t *testing.T) {
 }
 
 func TestGuestUpload(t *testing.T) {
-	passphrase, err := picoshare.NewPassphrase("dummypass")
-	if err != nil {
-		t.Fatalf("failed to create passphrase: %v", err)
-	}
-	authenticator := shared_secret.New(passphrase)
-
 	for _, tt := range []struct {
 		description                string
 		guestLinkInStore           picoshare.GuestLink
@@ -766,7 +753,7 @@ func TestGuestUpload(t *testing.T) {
 			}
 
 			now := tt.currentTime
-			s := handlers.New(authenticator, &dataStore, nilSpaceCheckFunc, nilGarbageCollector, func() time.Time { return now })
+			s := handlers.New(handlers.Params{Store: &dataStore, CheckSpace: nilSpaceCheckFunc, Collector: nilGarbageCollector, Now: func() time.Time { return now }})
 
 			filename := "dummyimage.png"
 			contents := "dummy bytes"
@@ -842,12 +829,6 @@ func TestGuestUpload(t *testing.T) {
 }
 
 func TestGuestUploadAcceptHeader(t *testing.T) {
-	passphrase, err := picoshare.NewPassphrase("dummypass")
-	if err != nil {
-		t.Fatalf("failed to create passphrase: %v", err)
-	}
-	authenticator := shared_secret.New(passphrase)
-
 	for _, tt := range []struct {
 		explanation         string
 		acceptHeader        string
@@ -892,7 +873,7 @@ func TestGuestUploadAcceptHeader(t *testing.T) {
 			}
 
 			now := mustParseTime("2024-01-01T00:00:00Z")
-			s := handlers.New(authenticator, &dataStore, nilSpaceCheckFunc, nilGarbageCollector, func() time.Time { return now })
+			s := handlers.New(handlers.Params{Store: &dataStore, CheckSpace: nilSpaceCheckFunc, Collector: nilGarbageCollector, Now: func() time.Time { return now }})
 
 			filename := "dummyimage.png"
 			contents := "dummy bytes"

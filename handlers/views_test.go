@@ -14,16 +14,6 @@ import (
 
 var errMultipleResponseWrites = errors.New("response body written more than once")
 
-type unauthenticatedAuthenticator struct{}
-
-func (unauthenticatedAuthenticator) StartSession(http.ResponseWriter, *http.Request) {}
-
-func (unauthenticatedAuthenticator) ClearSession(http.ResponseWriter) {}
-
-func (unauthenticatedAuthenticator) Authenticate(*http.Request) bool {
-	return false
-}
-
 type singleWriteResponseWriter struct {
 	header     http.Header
 	body       bytes.Buffer
@@ -59,13 +49,12 @@ func (w *singleWriteResponseWriter) Write(p []byte) (int, error) {
 }
 
 func TestIndexGetWritesRenderedTemplateAtomically(t *testing.T) {
-	s := handlers.New(
-		unauthenticatedAuthenticator{},
-		nil,
-		nilSpaceCheckFunc,
-		nilGarbageCollector,
-		time.Now,
-	)
+	s := handlers.New(handlers.Params{
+		Store:      nil,
+		CheckSpace: nilSpaceCheckFunc,
+		Collector:  nilGarbageCollector,
+		Now:        time.Now,
+	})
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := newSingleWriteResponseWriter()
 

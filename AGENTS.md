@@ -322,7 +322,8 @@ If you learned that methods shouldn't be exported just for testing, add to `AGEN
 
 - Start PicoShare before driving the UI:
   - `dev-scripts/build-backend dev`
-  - `PS_SHARED_SECRET=somepassword ./bin/picoshare-dev -db data/store.db`
+  - `./bin/picoshare-dev -db data/store.db`
+- Log in through `/login`'s "Dev log in" form (dev builds only), which skips the identity provider entirely.
 - Use the MCP Playwright server tools to drive the UI (for example, `mcp__playwright__browser_navigate` followed by `mcp__playwright__browser_snapshot`).
 
 # Nix flake
