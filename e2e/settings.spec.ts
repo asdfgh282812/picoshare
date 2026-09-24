@@ -5,7 +5,7 @@ test("default file expiration is 30 days", async ({ page }) => {
   await login(page);
 
   await page.getByRole("menuitem", { name: "System" }).hover();
-  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
   await expect(page).toHaveURL("/settings");
 
   await expect(
@@ -27,7 +27,7 @@ test("changes default file expiration to 5 days", async ({ page }) => {
   await login(page);
 
   await page.getByRole("menuitem", { name: "System" }).hover();
-  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
   await expect(page).toHaveURL("/settings");
 
   await expect(
@@ -49,7 +49,7 @@ test("changes default file expiration to 1 year", async ({ page }) => {
   await login(page);
 
   await page.getByRole("menuitem", { name: "System" }).hover();
-  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
   await expect(page).toHaveURL("/settings");
 
   await expect(
@@ -84,7 +84,7 @@ test("changes default file expiration to 10 years", async ({ page }) => {
   await login(page);
 
   await page.getByRole("menuitem", { name: "System" }).hover();
-  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
   await expect(page).toHaveURL("/settings");
 
   await expect(
@@ -108,7 +108,7 @@ test("changes default file expiration to never", async ({ page }) => {
   await login(page);
 
   await page.getByRole("menuitem", { name: "System" }).hover();
-  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
   await expect(page).toHaveURL("/settings");
 
   await page.getByRole("checkbox", { name: "Store files forever" }).check();
@@ -150,7 +150,7 @@ test("keeps download history forever by default", async ({ page }) => {
   await login(page);
 
   await page.getByRole("menuitem", { name: "System" }).hover();
-  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
   await expect(page).toHaveURL("/settings");
 
   await expect(
@@ -167,7 +167,7 @@ test("changes download history retention to 30 days", async ({ page }) => {
   await login(page);
 
   await page.getByRole("menuitem", { name: "System" }).hover();
-  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
   await expect(page).toHaveURL("/settings");
 
   await page
@@ -182,7 +182,7 @@ test("changes download history retention to 30 days", async ({ page }) => {
   await page.getByRole("menuitem", { name: "Upload" }).click();
   await expect(page).toHaveURL("/");
   await page.getByRole("menuitem", { name: "System" }).hover();
-  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
   await expect(page).toHaveURL("/settings");
 
   await expect(

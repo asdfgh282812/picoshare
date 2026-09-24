@@ -53,7 +53,7 @@ test("the administrator's default language applies to a visitor with no language
   await login(page);
 
   await page.getByRole("menuitem", { name: "System" }).hover();
-  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
   await expect(page).toHaveURL("/settings");
 
   await page.locator("#default-language").selectOption("zh-TW");

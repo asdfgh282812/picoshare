@@ -1,0 +1,172 @@
+{{ define "script-tags" }}
+  <script type="module" nonce="{{ .CspNonce }}">
+    import { grantAdmin, revokeAdmin } from "/js/controllers/members.js";
+    import { showElement, hideElement } from "/js/lib/visibility.js";
+    import { t } from "/js/lib/i18n.js";
+
+    const errorContainer = document.getElementById("error");
+
+    document
+      .querySelectorAll(
+        '[data-action="grant-admin"], [data-action="revoke-admin"]',
+      )
+      .forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = btn.getAttribute("pico-user-id");
+          const isGrant = btn.getAttribute("data-action") === "grant-admin";
+          const apiCall = isGrant ? grantAdmin : revokeAdmin;
+          const snackbarMessage = isGrant
+            ? t("members.promoted")
+            : t("members.demoted");
+
+          apiCall(id)
+            .then(() => {
+              const row = btn.closest("tr");
+              const badge = row.querySelector("[data-role-badge]");
+
+              if (isGrant) {
+                badge.textContent = t("members.admin");
+                badge.classList.replace("text-bg-secondary", "text-bg-primary");
+                btn.setAttribute("data-action", "revoke-admin");
+                btn.textContent = t("members.demote");
+                btn.classList.replace(
+                  "btn-outline-primary",
+                  "btn-outline-secondary",
+                );
+              } else {
+                badge.textContent = t("members.member");
+                badge.classList.replace("text-bg-primary", "text-bg-secondary");
+                btn.setAttribute("data-action", "grant-admin");
+                btn.textContent = t("members.promote");
+                btn.classList.replace(
+                  "btn-outline-secondary",
+                  "btn-outline-primary",
+                );
+              }
+
+              document
+                .querySelector("snackbar-notifications")
+                .addInfoMessage(snackbarMessage);
+            })
+            .catch((error) => {
+              document.getElementById("error-message").innerText = error;
+              showElement(errorContainer);
+            });
+        });
+      });
+
+    document
+      .querySelector("#error .btn-close")
+      .addEventListener("click", () => {
+        hideElement(errorContainer);
+      });
+  </script>
+{{ end }}
+
+{{ define "content" }}
+  <h1 class="h1">{{ .L.T "members.heading" }}</h1>
+
+  <div class="table-responsive mt-4">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>{{ .L.T "members.username" }}</th>
+          <th>{{ .L.T "members.email" }}</th>
+          <th>{{ .L.T "members.role" }}</th>
+          <th>{{ .L.T "members.created" }}</th>
+          <th>{{ .L.T "members.lastLogin" }}</th>
+          <th class="text-end">{{ .L.T "members.actions" }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ $l := .L }}
+        {{ $currentUserID := .CurrentUserID }}
+        {{ range .Users }}
+          {{ $isSelf := eq .ID.String $currentUserID }}
+          <tr>
+            <td class="align-middle">
+              {{ .Username }}
+              {{ if $isSelf }}
+                <span class="text-muted">({{ $l.T "members.you" }})</span>
+              {{ end }}
+            </td>
+            <td class="align-middle">
+              {{ if .Email.Empty }}
+                <span class="text-muted">{{ $l.T "members.noEmail" }}</span>
+              {{ else }}
+                {{ .Email }}
+              {{ end }}
+            </td>
+            <td class="align-middle">
+              <span
+                class="badge {{ if .IsAdmin }}
+                  text-bg-primary
+                {{ else }}
+                  text-bg-secondary
+                {{ end }}"
+                data-role-badge
+              >
+                {{ if .IsAdmin }}
+                  {{ $l.T "members.admin" }}
+                {{ else }}
+                  {{ $l.T "members.member" }}
+                {{ end }}
+              </span>
+            </td>
+            <td class="align-middle">{{ .Created.Format "2006-01-02" }}</td>
+            <td class="align-middle">{{ .LastLogin.Format "2006-01-02" }}</td>
+            <td class="align-middle text-end">
+              {{ if $isSelf }}
+                <button
+                  class="btn btn-outline-secondary btn-sm"
+                  type="button"
+                  disabled
+                  title="{{ $l.T "members.cannotDemoteSelf" }}"
+                >
+                  {{ $l.T "members.demote" }}
+                </button>
+              {{ else if .IsAdmin }}
+                <button
+                  class="btn btn-outline-secondary btn-sm"
+                  type="button"
+                  data-action="revoke-admin"
+                  pico-user-id="{{ .ID }}"
+                >
+                  {{ $l.T "members.demote" }}
+                </button>
+              {{ else }}
+                <button
+                  class="btn btn-outline-primary btn-sm"
+                  type="button"
+                  data-action="grant-admin"
+                  pico-user-id="{{ .ID }}"
+                >
+                  {{ $l.T "members.promote" }}
+                </button>
+              {{ end }}
+            </td>
+          </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+
+  <div id="error" class="d-none my-3">
+    <div
+      class="alert alert-danger d-flex justify-content-between align-items-start"
+      role="alert"
+    >
+      <div>
+        <strong>{{ .L.T "common.error" }}</strong>
+        <div id="error-message" class="mt-1">
+          {{ .L.T "common.placeholderError" }}
+        </div>
+      </div>
+      <button
+        class="btn-close"
+        type="button"
+        aria-label="{{ .L.T "common.close" }}"
+      ></button>
+    </div>
+  </div>
+{{ end }}

@@ -152,10 +152,18 @@ func parseOIDCSettingsRequest(r *http.Request, validator setupTokenValidator) (o
 	}, nil
 }
 
+// oidcSettingsReader is the subset of the store an admin OIDC settings
+// request needs to resolve a blank client secret.
+type oidcSettingsReader interface {
+	ReadOIDCSettings() (picoshare.OIDCSettings, error)
+}
+
 // oidcSettingsFromAdminRequest parses an OIDC settings update from an
 // already-authenticated administrator, who proves their access through their
-// session rather than a setup token.
-func oidcSettingsFromAdminRequest(r *http.Request) (picoshare.OIDCSettings, error) {
+// session rather than a setup token. A blank client secret means "keep the
+// currently configured secret": the admin settings page never echoes the
+// secret back, so there's no other way for an admin to resubmit it unchanged.
+func oidcSettingsFromAdminRequest(r *http.Request, current oidcSettingsReader) (picoshare.OIDCSettings, error) {
 	var payload struct {
 		IssuerURL      string `json:"issuerUrl"`
 		ExpectedIssuer string `json:"expectedIssuer"`
@@ -176,7 +184,7 @@ func oidcSettingsFromAdminRequest(r *http.Request) (picoshare.OIDCSettings, erro
 	if err != nil {
 		return picoshare.OIDCSettings{}, err
 	}
-	clientSecret, err := picoshare.NewOIDCClientSecret(payload.ClientSecret)
+	clientSecret, err := resolveAdminClientSecret(payload.ClientSecret, current)
 	if err != nil {
 		return picoshare.OIDCSettings{}, err
 	}
@@ -193,6 +201,20 @@ func oidcSettingsFromAdminRequest(r *http.Request) (picoshare.OIDCSettings, erro
 		RedirectURL:    redirectURL,
 		CACertPEM:      payload.CACertPEM,
 	}, nil
+}
+
+func resolveAdminClientSecret(raw string, current oidcSettingsReader) (picoshare.OIDCClientSecret, error) {
+	if raw != "" {
+		return picoshare.NewOIDCClientSecret(raw)
+	}
+	existing, err := current.ReadOIDCSettings()
+	if err != nil {
+		return picoshare.OIDCClientSecret{}, err
+	}
+	if existing.ClientSecret.String() == "" {
+		return picoshare.OIDCClientSecret{}, picoshare.ErrInvalidOIDCClientSecret
+	}
+	return existing.ClientSecret, nil
 }
 
 // adminOIDCSettingsGet returns the current OIDC settings so the Settings page
@@ -224,7 +246,7 @@ func (s Server) adminOIDCSettingsGet() http.HandlerFunc {
 
 func (s Server) adminOIDCSettingsPut() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		settings, err := oidcSettingsFromAdminRequest(r)
+		settings, err := oidcSettingsFromAdminRequest(r, s.store)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
 			return
@@ -239,7 +261,7 @@ func (s Server) adminOIDCSettingsPut() http.HandlerFunc {
 
 func (s Server) adminOIDCSettingsTestConnectionPost() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		settings, err := oidcSettingsFromAdminRequest(r)
+		settings, err := oidcSettingsFromAdminRequest(r, s.store)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
 			return
@@ -248,5 +270,23 @@ func (s Server) adminOIDCSettingsTestConnectionPost() http.HandlerFunc {
 			http.Error(w, fmt.Sprintf("Connection test failed: %v", err), http.StatusBadRequest)
 			return
 		}
+	}
+}
+
+// ssoSettingsGet serves the page administrators use to review and update
+// PicoShare's identity provider connection after initial setup. Unlike
+// setupGet, it never 404s once SSO is configured -- misconfigurations happen
+// after the fact too, and /setup is no longer reachable to fix them.
+func (s Server) ssoSettingsGet() http.HandlerFunc {
+	t := parseTemplates("templates/pages/sso-settings.html")
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		renderTemplate(w, t, struct {
+			commonProps
+			RedirectURL string
+		}{
+			commonProps: makeCommonProps("title.ssoSettings", r.Context()),
+			RedirectURL: baseURLFromRequest(r) + "/oidc/callback",
+		})
 	}
 }

@@ -1,0 +1,221 @@
+{{ define "script-tags" }}
+  <script type="module" nonce="{{ .CspNonce }}">
+    import {
+      getOidcSettings,
+      testConnection,
+      saveOidcSettings,
+    } from "/js/controllers/sso-settings.js";
+    import { showElement, hideElement } from "/js/lib/visibility.js";
+    import { enableElement, disableElement } from "/js/lib/html.js";
+    import { t } from "/js/lib/i18n.js";
+
+    const form = document.getElementById("sso-settings-form");
+    const errorContainer = document.getElementById("error");
+    const successContainer = document.getElementById("success");
+    const testBtn = document.getElementById("test-connection-btn");
+    const saveBtn = document.getElementById("save-btn");
+    const caCertHint = document.getElementById("ca-cert-hint");
+
+    function readSettings() {
+      return {
+        issuerUrl: document.getElementById("issuer-url").value,
+        expectedIssuer: document.getElementById("expected-issuer").value,
+        clientId: document.getElementById("client-id").value,
+        clientSecret: document.getElementById("client-secret").value,
+        redirectUrl: document.getElementById("redirect-url").value,
+        caCertPem: document.getElementById("ca-cert-pem").value,
+      };
+    }
+
+    function withButtonsDisabled(fn) {
+      hideElement(errorContainer);
+      hideElement(successContainer);
+      disableElement(testBtn);
+      disableElement(saveBtn);
+      return fn().finally(() => {
+        enableElement(testBtn);
+        enableElement(saveBtn);
+      });
+    }
+
+    getOidcSettings()
+      .then((settings) => {
+        document.getElementById("issuer-url").value = settings.issuerUrl;
+        document.getElementById("expected-issuer").value =
+          settings.expectedIssuer;
+        document.getElementById("client-id").value = settings.clientId;
+        // Only override the server-suggested redirect URL if an
+        // administrator has already configured one explicitly (for example,
+        // to match a reverse proxy). Otherwise keep the suggested default the
+        // page rendered with.
+        if (settings.redirectUrl) {
+          document.getElementById("redirect-url").value = settings.redirectUrl;
+        }
+        caCertHint.textContent = settings.hasCaCert
+          ? t("ssoSettings.caCertConfiguredHint")
+          : t("ssoSettings.caCertNotConfiguredHint");
+      })
+      .catch((error) => {
+        document.getElementById("error-message").innerText = error;
+        showElement(errorContainer);
+      });
+
+    testBtn.addEventListener("click", () => {
+      withButtonsDisabled(() => testConnection(readSettings()))
+        .then(() => {
+          document.getElementById("success-message").innerText = t(
+            "js.connectionSucceeded",
+          );
+          showElement(successContainer);
+        })
+        .catch((error) => {
+          document.getElementById("error-message").innerText = error;
+          showElement(errorContainer);
+        });
+    });
+
+    form.addEventListener("submit", (evt) => {
+      evt.preventDefault();
+      withButtonsDisabled(() => saveOidcSettings(readSettings()))
+        .then(() => {
+          document
+            .querySelector("snackbar-notifications")
+            .addInfoMessage(t("ssoSettings.saved"));
+        })
+        .catch((error) => {
+          document.getElementById("error-message").innerText = error;
+          showElement(errorContainer);
+        });
+    });
+
+    document
+      .querySelector("#error .btn-close")
+      .addEventListener("click", () => {
+        hideElement(errorContainer);
+      });
+  </script>
+{{ end }}
+
+{{ define "content" }}
+  <h1 class="h1">{{ .L.T "ssoSettings.heading" }}</h1>
+
+  <p>{{ .L.T "ssoSettings.intro" }}</p>
+
+  <form id="sso-settings-form">
+    <fieldset class="border rounded p-3 mb-4">
+      <legend class="float-none w-auto px-2 fs-6 mb-0">
+        {{ .L.T "setup.identityProvider" }}
+      </legend>
+
+      <div class="mb-3">
+        <label class="form-label" for="issuer-url"
+          >{{ .L.T "setup.issuerUrl" }}</label
+        >
+        <input
+          class="form-control"
+          id="issuer-url"
+          type="url"
+          required
+          placeholder="https://nas.example.com/webman/sso"
+        />
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="expected-issuer">
+          {{ .L.T "setup.expectedIssuer" }}
+        </label>
+        <input class="form-control" id="expected-issuer" type="text" />
+        <div class="form-text">
+          {{ .L.T "setup.expectedIssuerHint" }}
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="client-id"
+          >{{ .L.T "setup.clientId" }}</label
+        >
+        <input class="form-control" id="client-id" type="text" required />
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="client-secret"
+          >{{ .L.T "setup.clientSecret" }}</label
+        >
+        <input class="form-control" id="client-secret" type="password" />
+        <div class="form-text">
+          {{ .L.T "ssoSettings.clientSecretHint" }}
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="redirect-url"
+          >{{ .L.T "setup.redirectUrl" }}</label
+        >
+        <input
+          class="form-control"
+          id="redirect-url"
+          type="url"
+          required
+          value="{{ .RedirectURL }}"
+        />
+        <div class="form-text">
+          {{ .L.T "setup.redirectUrlHint" }}
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="ca-cert-pem">
+          {{ .L.T "setup.caCert" }}
+        </label>
+        <textarea
+          class="form-control"
+          id="ca-cert-pem"
+          rows="4"
+          placeholder="-----BEGIN CERTIFICATE-----"
+        ></textarea>
+        <div class="form-text" id="ca-cert-hint">
+          {{ .L.T "setup.caCertHint" }}
+        </div>
+      </div>
+    </fieldset>
+
+    <div>
+      <button
+        id="test-connection-btn"
+        class="btn btn-secondary me-2"
+        type="button"
+      >
+        {{ .L.T "setup.testConnection" }}
+      </button>
+      <button id="save-btn" class="btn btn-primary" type="submit">
+        <i class="fa-solid fa-floppy-disk me-2"></i>
+        {{ .L.T "common.save" }}
+      </button>
+    </div>
+  </form>
+
+  <div id="success" class="d-none my-3">
+    <div class="alert alert-success" role="alert">
+      <div id="success-message">{{ .L.T "common.placeholderError" }}</div>
+    </div>
+  </div>
+
+  <div id="error" class="d-none my-3">
+    <div
+      class="alert alert-danger d-flex justify-content-between align-items-start"
+      role="alert"
+    >
+      <div>
+        <strong>{{ .L.T "common.error" }}</strong>
+        <div id="error-message" class="mt-1">
+          {{ .L.T "common.placeholderError" }}
+        </div>
+      </div>
+      <button
+        class="btn-close"
+        type="button"
+        aria-label="{{ .L.T "common.close" }}"
+      ></button>
+    </div>
+  </div>
+{{ end }}

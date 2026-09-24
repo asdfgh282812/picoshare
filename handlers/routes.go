@@ -29,6 +29,8 @@ func (s *Server) routes() {
 	adminApis.HandleFunc("/admin/oidc-settings", s.adminOIDCSettingsGet()).Methods(http.MethodGet)
 	adminApis.HandleFunc("/admin/oidc-settings", s.adminOIDCSettingsPut()).Methods(http.MethodPut)
 	adminApis.HandleFunc("/admin/oidc-settings/test-connection", s.adminOIDCSettingsTestConnectionPost()).Methods(http.MethodPost)
+	adminApis.HandleFunc("/admin/users/{id}/grant-admin", s.memberGrantAdminPut()).Methods(http.MethodPut)
+	adminApis.HandleFunc("/admin/users/{id}/revoke-admin", s.memberRevokeAdminPut()).Methods(http.MethodPut)
 
 	publicApis := s.router.PathPrefix("/api").Subrouter()
 	publicApis.HandleFunc("/guest/{guestLinkID}", s.guestEntryPost()).Methods(http.MethodPost)
@@ -74,6 +76,8 @@ func (s *Server) routes() {
 	adminViews.HandleFunc("/information", s.systemInformationGet()).Methods(http.MethodGet)
 	adminViews.HandleFunc("/settings", s.settingsGet()).Methods(http.MethodGet)
 	adminViews.HandleFunc("/files/all", s.fileAllGet()).Methods(http.MethodGet)
+	adminViews.HandleFunc("/members", s.membersGet()).Methods(http.MethodGet)
+	adminViews.HandleFunc("/sso-settings", s.ssoSettingsGet()).Methods(http.MethodGet)
 
 	views := s.router.PathPrefix("/").Subrouter()
 	views.Use(upgradeToHttps)

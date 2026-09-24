@@ -156,7 +156,7 @@ test("uploads a file and then uploads another", async ({ page }) => {
 
   // Set default to 30 days.
   await page.getByRole("menuitem", { name: "System" }).hover();
-  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
   await expect(page).toHaveURL("/settings");
 
   await page.locator("#default-expiration").fill("30");
