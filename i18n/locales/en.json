@@ -23,6 +23,7 @@
   "nav.logIn": "Log In",
   "nav.language": "Language",
   "nav.toggleNavigation": "Toggle navigation",
+  "nav.toggleTheme": "Toggle light/dark theme",
 
   "lifetime.never": "Never",
   "lifetime.day": "%d day",
@@ -93,6 +94,8 @@
   "files.uploaded": "Uploaded",
   "files.expires": "Expires",
   "files.info": "Information",
+  "files.emptyTitle": "No files yet",
+  "files.emptyBody": "Files you upload will show up here.",
 
   "fileEdit.heading": "Edit File",
   "fileEdit.filename": "Filename",

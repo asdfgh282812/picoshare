@@ -1,5 +1,5 @@
 {{ define "navbar" }}
-  <nav class="navbar navbar-expand-lg navbar-light bg-light" role="navigation">
+  <nav class="navbar navbar-expand-lg" role="navigation">
     <div class="container">
       <a class="navbar-brand" href="/">PicoShare</a>
       <button
@@ -98,6 +98,16 @@
                 </button>
               </li>
             </ul>
+          </li>
+          <li class="nav-item">
+            <button
+              id="theme-toggle"
+              class="nav-link border-0 bg-transparent"
+              type="button"
+              aria-label="{{ .L.T "nav.toggleTheme" }}"
+            >
+              <i id="theme-toggle-icon" class="fa-solid fa-moon"></i>
+            </button>
           </li>
           {{ if .IsAuthenticated }}
             <li class="nav-item dropdown">

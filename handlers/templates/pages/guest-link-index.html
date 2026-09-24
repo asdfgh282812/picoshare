@@ -30,7 +30,7 @@
       }
 
       & .inactive {
-        background-color: #d9d9d9;
+        background-color: var(--bs-secondary-bg);
       }
 
       & .inactive [data-action="copy"] {
@@ -51,7 +51,7 @@
       guestLinkEnable,
       guestLinkDisable,
     } from "/js/controllers/guestLinks.js";
-    import { showElement, hideElement } from "/js/lib/bulma.js";
+    import { showElement, hideElement } from "/js/lib/visibility.js";
     import { copyToClipboard } from "/js/lib/clipboard.js";
     import { t } from "/js/lib/i18n.js";
 

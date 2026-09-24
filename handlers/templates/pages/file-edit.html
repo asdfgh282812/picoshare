@@ -1,7 +1,7 @@
 {{ define "script-tags" }}
   <script type="module" nonce="{{ .CspNonce }}">
     import { editFile } from "/js/controllers/files.js";
-    import { showElement, hideElement } from "/js/lib/bulma.js";
+    import { showElement, hideElement } from "/js/lib/visibility.js";
     import { enableElement, disableElement } from "/js/lib/html.js";
 
     const editForm = document.getElementById("edit-form");
