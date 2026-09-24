@@ -96,6 +96,7 @@
   "files.info": "Information",
   "files.emptyTitle": "No files yet",
   "files.emptyBody": "Files you upload will show up here.",
+  "files.expiringSoon": "Expiring soon",
 
   "fileEdit.heading": "Edit File",
   "fileEdit.filename": "Filename",

@@ -96,6 +96,7 @@
   "files.info": "詳細資訊",
   "files.emptyTitle": "目前沒有任何檔案",
   "files.emptyBody": "你上傳的檔案會顯示在這裡。",
+  "files.expiringSoon": "即將到期",
 
   "fileEdit.heading": "編輯檔案",
   "fileEdit.filename": "檔名",

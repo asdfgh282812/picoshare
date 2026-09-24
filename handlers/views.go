@@ -12,6 +12,7 @@ import (
 	"math"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -94,7 +95,8 @@ func (s Server) guestLinkIndexGet() http.HandlerFunc {
 			}
 			return l.T("expiration.withDays", t.Format(time.DateOnly), days)
 		},
-		"friendlyLifetime": friendlyLifetimeName,
+		"friendlyLifetime":               friendlyLifetimeName,
+		"guestLinkUploadProgressPercent": guestLinkUploadProgressPercent,
 	}
 
 	t := parseTemplatesWithFuncs(fns, "templates/pages/guest-link-index.html")
@@ -184,6 +186,10 @@ func (s Server) fileIndexGet() http.HandlerFunc {
 			return l.T("expiration.withDays", t.Format(time.DateOnly), daysRemaining)
 		},
 		"formatFileSize": humanReadableFileSize,
+		"isExpiringSoon": func(et picoshare.ExpirationTime) bool {
+			return isExpiringSoon(et, s.now())
+		},
+		"fileTypeIcon": fileTypeIcon,
 	}
 
 	t := parseTemplatesWithFuncs(fns, "templates/pages/file-index.html")
@@ -211,6 +217,10 @@ func (s Server) fileAllGet() http.HandlerFunc {
 			return l.T("expiration.withDays", t.Format(time.DateOnly), daysRemaining)
 		},
 		"formatFileSize": humanReadableFileSize,
+		"isExpiringSoon": func(et picoshare.ExpirationTime) bool {
+			return isExpiringSoon(et, s.now())
+		},
+		"fileTypeIcon": fileTypeIcon,
 	}
 
 	t := parseTemplatesWithFuncs(fns, "templates/pages/file-index.html")
@@ -822,6 +832,63 @@ func friendlyLifetimeName(lt picoshare.FileLifetime, l i18n.Localizer) string {
 		return l.T("lifetime.day", days)
 	}
 	return l.T("lifetime.days", days)
+}
+
+// expiringSoonThreshold is how close to its expiration time an entry must be
+// before the file list flags it with a warning badge.
+const expiringSoonThreshold = 72 * time.Hour
+
+// isExpiringSoon reports whether et falls within expiringSoonThreshold of
+// now, excluding entries that never expire or have already expired (the
+// cleanup job removes those before a user would see them here).
+func isExpiringSoon(et picoshare.ExpirationTime, now time.Time) bool {
+	if et == picoshare.NeverExpire {
+		return false
+	}
+	delta := et.Time().Sub(now)
+	return delta > 0 && delta <= expiringSoonThreshold
+}
+
+// fileTypeIcon returns the Font Awesome icon class that best represents ct.
+func fileTypeIcon(ct picoshare.ContentType) string {
+	s := ct.String()
+	switch {
+	case strings.HasPrefix(s, "image/"):
+		return "fa-file-image"
+	case strings.HasPrefix(s, "video/"):
+		return "fa-file-video"
+	case strings.HasPrefix(s, "audio/"):
+		return "fa-file-audio"
+	case strings.HasPrefix(s, "text/"):
+		return "fa-file-lines"
+	case s == "application/pdf":
+		return "fa-file-pdf"
+	case s == "application/zip", s == "application/x-7z-compressed", s == "application/x-tar", s == "application/gzip", s == "application/x-rar-compressed":
+		return "fa-file-zipper"
+	case strings.Contains(s, "word"):
+		return "fa-file-word"
+	case strings.Contains(s, "excel") || strings.Contains(s, "spreadsheet"):
+		return "fa-file-excel"
+	default:
+		return "fa-file"
+	}
+}
+
+// guestLinkUploadProgressPercent returns how full a guest link's upload
+// allowance is, from 0 to 100, or -1 when the guest link has no upload
+// limit (in which case the caller shouldn't show a progress bar at all).
+func guestLinkUploadProgressPercent(uploaded int, limit picoshare.GuestUploadCountLimit) int {
+	if limit == picoshare.GuestUploadUnlimitedFileUploads {
+		return -1
+	}
+	if *limit <= 0 {
+		return 100
+	}
+	pct := int(100 * float64(uploaded) / float64(*limit))
+	if pct > 100 {
+		return 100
+	}
+	return pct
 }
 
 func humanReadableDiskUsage(b uint64) string {
