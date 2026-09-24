@@ -155,11 +155,10 @@ These clients are built and maintained by third parties, not by the PicoShare pr
 
 ### Reclaiming reserved database space
 
-Some users find it surprising that when they delete files from PicoShare, they don't gain back free space on their filesystem.
+When you delete files, PicoShare temporarily keeps their space inside the database file. PicoShare returns that space to the filesystem during database cleanup, which runs when PicoShare starts and every few hours afterwards. To reclaim space immediately, go to the System Information screen and select "Clean up now."
 
-When you delete files, PicoShare reserves the space for future uploads. If you'd like to reduce PicoShare's usage of your filesystem, you can manually force PicoShare to give up the space by performing the following steps:
+The first time you start a version of PicoShare with automatic space reclamation, PicoShare converts your existing database, which requires free disk space roughly equal to the size of the database. If there isn't enough free space, PicoShare logs an error and keeps running, but it can't shrink the database file until the conversion succeeds.
 
-1. Shut down PicoShare.
-1. Run `sqlite3 data/store.db 'VACUUM'` where `data/store.db` is the path to your PicoShare database.
+### Download history retention
 
-You should find that the `data/store.db` should shrink in file size, as it relinquishes the space dedicated to previously deleted files. If you start PicoShare again, the System Information screen will show the smaller size of PicoShare files.
+By default, PicoShare keeps the download history of each file for as long as the file exists. To delete old download records automatically, go to the Settings screen and set a download history retention period.

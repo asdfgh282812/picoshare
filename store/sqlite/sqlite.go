@@ -25,9 +25,10 @@ type (
 	}
 
 	Store struct {
-		db        *sql.DB
-		chunkSize uint64
-		now       func() time.Time
+		db                    *sql.DB
+		chunkSize             uint64
+		now                   func() time.Time
+		optimizeForLitestream bool
 	}
 
 	rowScanner interface {
@@ -61,6 +62,8 @@ func New(params Params) Store {
 		}
 	}
 
+	enableIncrementalVacuum(db)
+
 	applyMigrations(db)
 
 	chunkSize := params.PicoShareChunkSize
@@ -69,9 +72,36 @@ func New(params Params) Store {
 	}
 
 	return Store{
-		db:        db,
-		chunkSize: chunkSize,
-		now:       params.Now,
+		db:                    db,
+		chunkSize:             chunkSize,
+		now:                   params.Now,
+		optimizeForLitestream: params.OptimizeForLitestream,
+	}
+}
+
+// enableIncrementalVacuum lets Purge return the space of deleted files to the
+// filesystem. Switching an existing database to incremental auto-vacuum
+// requires a one-time VACUUM, which temporarily needs free disk space roughly
+// equal to the size of the database.
+func enableIncrementalVacuum(db *sql.DB) {
+	const autoVacuumIncremental = 2
+	var mode int
+	if err := db.QueryRow(`PRAGMA auto_vacuum`).Scan(&mode); err != nil {
+		log.Fatalf("failed to read auto_vacuum mode: %v", err)
+	}
+	if mode == autoVacuumIncremental {
+		return
+	}
+
+	log.Printf("enabling incremental auto-vacuum, which may take a while on large databases")
+	if _, err := db.Exec(`
+		PRAGMA auto_vacuum = INCREMENTAL;
+		VACUUM;
+		`); err != nil {
+		// Don't prevent startup, as the most likely cause is a lack of disk space
+		// for VACUUM. PicoShare still reuses the space of deleted files for future
+		// uploads, but it can't shrink the database file.
+		log.Printf("failed to enable incremental auto-vacuum: %v", err)
 	}
 }
 

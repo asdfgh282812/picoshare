@@ -145,3 +145,52 @@ test("changes default file expiration to never", async ({ page }) => {
   expect(expirationOptions[4]).toEqual("Never");
   expect(expirationOptions[5]).toEqual("Custom");
 });
+
+test("keeps download history forever by default", async ({ page }) => {
+  await login(page);
+
+  await page.getByRole("menuitem", { name: "System" }).hover();
+  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await expect(page).toHaveURL("/settings");
+
+  await expect(
+    page.getByRole("checkbox", { name: "Keep download history forever" }),
+  ).toBeChecked();
+  await expect(
+    page.getByRole("spinbutton", {
+      name: "Delete download records older than",
+    }),
+  ).toBeDisabled();
+});
+
+test("changes download history retention to 30 days", async ({ page }) => {
+  await login(page);
+
+  await page.getByRole("menuitem", { name: "System" }).hover();
+  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await expect(page).toHaveURL("/settings");
+
+  await page
+    .getByRole("checkbox", { name: "Keep download history forever" })
+    .uncheck();
+  await page
+    .getByRole("spinbutton", { name: "Delete download records older than" })
+    .fill("30");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Settings saved")).toBeVisible();
+
+  await page.getByRole("menuitem", { name: "Upload" }).click();
+  await expect(page).toHaveURL("/");
+  await page.getByRole("menuitem", { name: "System" }).hover();
+  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await expect(page).toHaveURL("/settings");
+
+  await expect(
+    page.getByRole("checkbox", { name: "Keep download history forever" }),
+  ).not.toBeChecked();
+  await expect(
+    page.getByRole("spinbutton", {
+      name: "Delete download records older than",
+    }),
+  ).toHaveValue("30");
+});
