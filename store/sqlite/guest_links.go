@@ -9,9 +9,7 @@ import (
 	"github.com/mtlynch/picoshare/store"
 )
 
-func (s Store) GetGuestLink(id picoshare.GuestLinkID) (picoshare.GuestLink, error) {
-	row := s.db.QueryRow(`
-		SELECT
+const guestLinkSelectColumns = `
 			guest_links.id AS id,
 			guest_links.label AS label,
 			guest_links.is_disabled As is_disabled,
@@ -20,7 +18,12 @@ func (s Store) GetGuestLink(id picoshare.GuestLinkID) (picoshare.GuestLink, erro
 			guest_links.creation_time AS creation_time,
 			guest_links.url_expiration_time AS url_expiration_time,
 			guest_links.file_expiration_time AS file_expiration_time,
-			SUM(CASE WHEN entries.id IS NOT NULL THEN 1 ELSE 0 END) AS entry_count
+			guest_links.owner_user_id AS owner_user_id,
+			SUM(CASE WHEN entries.id IS NOT NULL THEN 1 ELSE 0 END) AS entry_count`
+
+func (s Store) GetGuestLink(id picoshare.GuestLinkID) (picoshare.GuestLink, error) {
+	row := s.db.QueryRow(`
+		SELECT`+guestLinkSelectColumns+`
 		FROM
 			guest_links
 		LEFT JOIN
@@ -33,24 +36,20 @@ func (s Store) GetGuestLink(id picoshare.GuestLinkID) (picoshare.GuestLink, erro
 	return guestLinkFromRow(row)
 }
 
-func (s Store) GetGuestLinks() ([]picoshare.GuestLink, error) {
+// GetGuestLinks returns every guest link owned by the given user. Unlike
+// entries, PicoShare has no admin view across every user's guest links, so
+// callers always filter by owner.
+func (s Store) GetGuestLinks(owner picoshare.UserID) ([]picoshare.GuestLink, error) {
 	rows, err := s.db.Query(`
-		SELECT
-			guest_links.id AS id,
-			guest_links.label AS label,
-			guest_links.is_disabled As is_disabled,
-			guest_links.max_file_bytes AS max_file_bytes,
-			guest_links.max_file_uploads AS max_file_uploads,
-			guest_links.creation_time AS creation_time,
-			guest_links.url_expiration_time AS url_expiration_time,
-			guest_links.file_expiration_time AS file_expiration_time,
-			SUM(CASE WHEN entries.id IS NOT NULL THEN 1 ELSE 0 END) AS entry_count
+		SELECT`+guestLinkSelectColumns+`
 		FROM
 			guest_links
 		LEFT JOIN
 			entries ON guest_links.id = entries.guest_link_id
+		WHERE
+			guest_links.owner_user_id = :owner_user_id
 		GROUP BY
-			guest_links.id`)
+			guest_links.id`, sql.Named("owner_user_id", owner.Int64()))
 	if err != nil {
 		return []picoshare.GuestLink{}, err
 	}
@@ -71,6 +70,12 @@ func (s Store) GetGuestLinks() ([]picoshare.GuestLink, error) {
 func (s *Store) InsertGuestLink(guestLink picoshare.GuestLink) error {
 	log.Printf("saving new guest link %s", guestLink.ID)
 
+	var ownerUserID *int64
+	if !guestLink.OwnerID.Empty() {
+		v := guestLink.OwnerID.Int64()
+		ownerUserID = &v
+	}
+
 	if _, err := s.db.Exec(`
 	INSERT INTO guest_links
 		(
@@ -81,9 +86,10 @@ func (s *Store) InsertGuestLink(guestLink picoshare.GuestLink) error {
 			max_file_uploads,
 			creation_time,
 			url_expiration_time,
-			file_expiration_time
+			file_expiration_time,
+			owner_user_id
 		)
-		VALUES (:id, :label, :is_disabled,:max_file_bytes, :max_file_uploads, :creation_time, :url_expiration_time, :file_expiration_time)
+		VALUES (:id, :label, :is_disabled,:max_file_bytes, :max_file_uploads, :creation_time, :url_expiration_time, :file_expiration_time, :owner_user_id)
 	`,
 		sql.Named("id", guestLink.ID),
 		sql.Named("label", guestLink.Label),
@@ -92,7 +98,8 @@ func (s *Store) InsertGuestLink(guestLink picoshare.GuestLink) error {
 		sql.Named("max_file_uploads", guestLink.MaxFileUploads),
 		sql.Named("creation_time", formatTime(guestLink.Created)),
 		sql.Named("url_expiration_time", formatExpirationTime(guestLink.UrlExpires)),
-		sql.Named("file_expiration_time", formatFileLifetime(guestLink.MaxFileLifetime))); err != nil {
+		sql.Named("file_expiration_time", formatFileLifetime(guestLink.MaxFileLifetime)),
+		sql.Named("owner_user_id", ownerUserID)); err != nil {
 		return err
 	}
 
@@ -183,9 +190,10 @@ func guestLinkFromRow(row rowScanner) (picoshare.GuestLink, error) {
 	var creationTimeRaw string
 	var urlExpirationTimeRaw string
 	var fileLifetimeRaw *string
+	var ownerUserID *int64
 	var filesUploaded int
 
-	err := row.Scan(&id, &label, &isDisabled, &maxFileBytes, &maxFileUploads, &creationTimeRaw, &urlExpirationTimeRaw, &fileLifetimeRaw, &filesUploaded)
+	err := row.Scan(&id, &label, &isDisabled, &maxFileBytes, &maxFileUploads, &creationTimeRaw, &urlExpirationTimeRaw, &fileLifetimeRaw, &ownerUserID, &filesUploaded)
 	if err == sql.ErrNoRows {
 		return picoshare.GuestLink{}, store.GuestLinkNotFoundError{ID: id}
 	} else if err != nil {
@@ -212,9 +220,15 @@ func guestLinkFromRow(row rowScanner) (picoshare.GuestLink, error) {
 		}
 	}
 
+	var ownerID picoshare.UserID
+	if ownerUserID != nil {
+		ownerID = picoshare.UserIDFromInt64(*ownerUserID)
+	}
+
 	return picoshare.GuestLink{
 		ID:              id,
 		Label:           label,
+		OwnerID:         ownerID,
 		IsDisabled:      isDisabled,
 		MaxFileBytes:    maxFileBytes,
 		MaxFileUploads:  maxFileUploads,

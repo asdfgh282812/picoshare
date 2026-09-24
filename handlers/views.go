@@ -28,6 +28,8 @@ var templatesFS embed.FS
 type commonProps struct {
 	Title           string
 	IsAuthenticated bool
+	IsAdmin         bool
+	Username        string
 	CspNonce        string
 }
 
@@ -91,7 +93,8 @@ func (s Server) guestLinkIndexGet() http.HandlerFunc {
 
 	t := parseTemplatesWithFuncs(fns, "templates/pages/guest-link-index.html")
 	return func(w http.ResponseWriter, r *http.Request) {
-		links, err := s.store.GetGuestLinks()
+		user, _ := currentUser(r.Context())
+		links, err := s.store.GetGuestLinks(user.ID)
 		if err != nil {
 			log.Printf("failed to retrieve guest links: %v", err)
 			http.Error(w, "Failed to retrieve guest links", http.StatusInternalServerError)
@@ -177,8 +180,41 @@ func (s Server) fileIndexGet() http.HandlerFunc {
 
 	t := parseTemplatesWithFuncs(fns, "templates/pages/file-index.html")
 
+	return s.fileIndexGetWithOptions(t, "PicoShare - Files", false, func(ctx context.Context) []store.ReadEntriesOption {
+		user, _ := currentUser(ctx)
+		return []store.ReadEntriesOption{store.FilterByOwner(user.ID)}
+	})
+}
+
+// fileAllGet shows every entry regardless of owner. Only administrators can
+// reach this route.
+func (s Server) fileAllGet() http.HandlerFunc {
+	fns := template.FuncMap{
+		"formatDate": func(t time.Time) string {
+			return t.Format(time.DateOnly)
+		},
+		"formatExpiration": func(et picoshare.ExpirationTime) string {
+			if et == picoshare.NeverExpire {
+				return "Never"
+			}
+			t := et.Time().Local()
+			delta := t.Sub(s.now())
+			daysRemaining := delta.Hours() / 24
+			return fmt.Sprintf("%s (%.0f days)", t.Format(time.DateOnly), daysRemaining)
+		},
+		"formatFileSize": humanReadableFileSize,
+	}
+
+	t := parseTemplatesWithFuncs(fns, "templates/pages/file-index.html")
+
+	return s.fileIndexGetWithOptions(t, "PicoShare - All Files", true, func(context.Context) []store.ReadEntriesOption {
+		return nil
+	})
+}
+
+func (s Server) fileIndexGetWithOptions(t *template.Template, title string, showOwner bool, optsFromContext func(context.Context) []store.ReadEntriesOption) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		em, err := s.store.GetEntriesMetadata()
+		em, err := s.store.GetEntriesMetadata(optsFromContext(r.Context())...)
 		if err != nil {
 			log.Printf("failed to retrieve entries metadata: %v", err)
 			http.Error(w, "failed to retrieve file index", http.StatusInternalServerError)
@@ -189,10 +225,12 @@ func (s Server) fileIndexGet() http.HandlerFunc {
 		})
 		renderTemplate(w, t, struct {
 			commonProps
-			Files []picoshare.UploadMetadata
+			Files     []picoshare.UploadMetadata
+			ShowOwner bool
 		}{
-			commonProps: makeCommonProps("PicoShare - Files", r.Context()),
+			commonProps: makeCommonProps(title, r.Context()),
 			Files:       em,
+			ShowOwner:   showOwner,
 		})
 	}
 }
@@ -222,13 +260,8 @@ func (s Server) fileEditGet() http.HandlerFunc {
 			return
 		}
 
-		metadata, err := s.store.GetEntryMetadata(id)
-		if _, ok := errors.AsType[store.EntryNotFoundError](err); ok {
-			http.Error(w, "entry not found", http.StatusNotFound)
-			return
-		} else if err != nil {
-			log.Printf("error retrieving entry with id %v: %v", id, err)
-			http.Error(w, "failed to retrieve entry", http.StatusInternalServerError)
+		metadata, ok := s.manageableEntry(w, r, id)
+		if !ok {
 			return
 		}
 
@@ -275,13 +308,8 @@ func (s Server) fileInfoGet() http.HandlerFunc {
 			return
 		}
 
-		metadata, err := s.store.GetEntryMetadata(id)
-		if _, ok := errors.AsType[store.EntryNotFoundError](err); ok {
-			http.Error(w, "entry not found", http.StatusNotFound)
-			return
-		} else if err != nil {
-			log.Printf("error retrieving entry with id %v: %v", id, err)
-			http.Error(w, "failed to retrieve entry", http.StatusInternalServerError)
+		metadata, ok := s.manageableEntry(w, r, id)
+		if !ok {
 			return
 		}
 
@@ -323,19 +351,12 @@ func (s Server) fileDownloadsGet() http.HandlerFunc {
 			return
 		}
 
-		db := s.store
-
-		metadata, err := db.GetEntryMetadata(id)
-		if _, ok := errors.AsType[store.EntryNotFoundError](err); ok {
-			http.Error(w, "entry not found", http.StatusNotFound)
-			return
-		} else if err != nil {
-			log.Printf("error retrieving entry with id %v: %v", id, err)
-			http.Error(w, "failed to retrieve entry", http.StatusInternalServerError)
+		metadata, ok := s.manageableEntry(w, r, id)
+		if !ok {
 			return
 		}
 
-		downloads, err := db.GetEntryDownloads(id)
+		downloads, err := s.store.GetEntryDownloads(id)
 		if err != nil {
 			log.Printf("error retrieving downloads for id %v: %v", id, err)
 			http.Error(w, "failed to retrieve downloads", http.StatusInternalServerError)
@@ -401,13 +422,8 @@ func (s Server) fileConfirmDeleteGet() http.HandlerFunc {
 			return
 		}
 
-		metadata, err := s.store.GetEntryMetadata(id)
-		if _, ok := errors.AsType[store.EntryNotFoundError](err); ok {
-			http.Error(w, "entry not found", http.StatusNotFound)
-			return
-		} else if err != nil {
-			log.Printf("error retrieving entry with id %v: %v", id, err)
-			http.Error(w, "failed to retrieve entry", http.StatusInternalServerError)
+		metadata, ok := s.manageableEntry(w, r, id)
+		if !ok {
 			return
 		}
 		renderTemplate(w, t, struct {
@@ -420,15 +436,51 @@ func (s Server) fileConfirmDeleteGet() http.HandlerFunc {
 	}
 }
 
+// authPageProps is the data templates/pages/auth.html renders. authGet and
+// oidcCallbackGet (which re-renders the login page after a failed login)
+// share it so both pass the template the same set of fields.
+type authPageProps struct {
+	commonProps
+	NeedsSetup      bool
+	DevLoginEnabled bool
+	LoginError      string
+}
+
+func (s Server) authPageProps(ctx context.Context, loginError string) (authPageProps, error) {
+	needsSetup, err := s.store.NeedsSetup()
+	if err != nil {
+		return authPageProps{}, err
+	}
+	return authPageProps{
+		commonProps:     makeCommonProps("PicoShare - Log in", ctx),
+		NeedsSetup:      needsSetup,
+		DevLoginEnabled: devLoginEnabled,
+		LoginError:      loginError,
+	}, nil
+}
+
 func (s Server) authGet() http.HandlerFunc {
 	t := parseTemplates("templates/pages/auth.html")
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		renderTemplate(w, t, struct {
-			commonProps
-		}{
-			commonProps: makeCommonProps("PicoShare - Log in", r.Context()),
-		})
+		if isAuthenticated(r.Context()) {
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+
+		var loginError string
+		if r.URL.Query().Get("error") == "not_configured" {
+			loginError = "Single sign-on is not configured yet."
+		}
+
+		props, err := s.authPageProps(r.Context(), loginError)
+		if err != nil {
+			log.Printf("failed to check setup status: %v", err)
+			http.Error(w, "Failed to check setup status", http.StatusInternalServerError)
+			return
+		}
+
+		renderTemplate(w, t, props)
 	}
 }
 
@@ -748,9 +800,12 @@ func humanReadableDiskUsage(b uint64) string {
 }
 
 func makeCommonProps(title string, ctx context.Context) commonProps {
+	user, ok := currentUser(ctx)
 	return commonProps{
 		Title:           title,
-		IsAuthenticated: isAuthenticated(ctx),
+		IsAuthenticated: ok,
+		IsAdmin:         user.IsAdmin,
+		Username:        user.Username.String(),
 		CspNonce:        cspNonce(ctx),
 	}
 }

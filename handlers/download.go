@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -45,10 +46,11 @@ func (s Server) entryGet() http.HandlerFunc {
 			return
 		}
 		if !entry.DownloadPassphrase.Empty() {
-			// Prevent caches from serving a password-bypassing download after an
-			// administrator downloads this entry with their session cookie.
+			// Prevent caches from serving a password-bypassing download after the
+			// owner or an administrator downloads this entry with their session
+			// cookie.
 			w.Header().Set("Cache-Control", "no-store")
-			if !isAuthenticated(r.Context()) {
+			if !canBypassPassphrase(r.Context(), entry) {
 				http.Redirect(w, r, entryUnlockPath(entry.ID), http.StatusFound)
 				return
 			}
@@ -77,10 +79,11 @@ func (s Server) entryUnlockGet() http.HandlerFunc {
 			return
 		}
 
-		// Prevent caches from serving a password-bypassing redirect after an
-		// administrator accesses this page with their session cookie.
+		// Prevent caches from serving a password-bypassing redirect after the
+		// owner or an administrator accesses this page with their session
+		// cookie.
 		w.Header().Set("Cache-Control", "no-store")
-		if entry.DownloadPassphrase.Empty() || isAuthenticated(r.Context()) {
+		if entry.DownloadPassphrase.Empty() || canBypassPassphrase(r.Context(), entry) {
 			http.Redirect(w, r, entryDownloadPath(entry.ID), http.StatusFound)
 			return
 		}
@@ -116,7 +119,7 @@ func (s Server) entryUnlockPost() http.HandlerFunc {
 			return
 		}
 
-		if entry.DownloadPassphrase.Empty() || isAuthenticated(r.Context()) {
+		if entry.DownloadPassphrase.Empty() || canBypassPassphrase(r.Context(), entry) {
 			http.Redirect(w, r, entryDownloadPath(entry.ID), http.StatusFound)
 			return
 		}
@@ -155,6 +158,14 @@ func parseEntryUnlockRequest(r *http.Request) (entryUnlockRequest, error) {
 		EntryID:    id,
 		Passphrase: passphrase,
 	}, nil
+}
+
+// canBypassPassphrase reports whether the requester may skip a download
+// passphrase because they own the entry or administer PicoShare. Anyone
+// else, logged in or not, must know the passphrase.
+func canBypassPassphrase(ctx context.Context, entry picoshare.UploadMetadata) bool {
+	user, ok := currentUser(ctx)
+	return ok && user.CanManageEntry(entry)
 }
 
 func entryDownloadPath(id picoshare.EntryID) string {

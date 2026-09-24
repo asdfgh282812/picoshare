@@ -142,7 +142,7 @@ func TestEntryGet(t *testing.T) {
 				}
 			}
 
-			s := handlers.New(mockAuthenticator{}, &dataStore, nilSpaceCheckFunc, nilGarbageCollector, time.Now)
+			s := handlers.New(handlers.Params{Store: &dataStore, CheckSpace: nilSpaceCheckFunc, Collector: nilGarbageCollector, Now: time.Now})
 
 			req := httptest.NewRequest(http.MethodGet, tt.requestRoute, nil)
 
@@ -394,10 +394,20 @@ func TestProtectedEntryDownload(t *testing.T) {
 	} {
 		t.Run(tt.explanation, func(t *testing.T) {
 			dataStore := test_sqlite.New(t)
+
+			var ownerID picoshare.UserID
+			var loginCookie *http.Cookie
+			if tt.authenticated {
+				owner, cookie := mustLoginAsUser(t, &dataStore, "owner", mustParseTime("2023-01-01T00:00:00Z"))
+				ownerID = owner.ID
+				loginCookie = cookie
+			}
+
 			if err := dataStore.InsertEntry(strings.NewReader(tt.entryInStore.Contents), picoshare.UploadMetadata{
 				ID:                 picoshare.MustCreateEntryID(tt.entryInStore.ID),
 				Filename:           "test.txt",
 				ContentType:        "text/plain",
+				OwnerID:            ownerID,
 				Uploaded:           mustParseTime("2023-01-01T00:00:00Z"),
 				Expires:            picoshare.NeverExpire,
 				Size:               mustParseFileSize(len(tt.entryInStore.Contents)),
@@ -406,16 +416,15 @@ func TestProtectedEntryDownload(t *testing.T) {
 				t.Fatalf("failed to insert entry: %v", err)
 			}
 
-			var authenticator handlers.Authenticator = unauthenticatedAuthenticator{}
-			if tt.authenticated {
-				authenticator = mockAuthenticator{}
-			}
-			s := handlers.New(authenticator, &dataStore, nilSpaceCheckFunc, nilGarbageCollector, time.Now)
+			s := handlers.New(handlers.Params{Store: &dataStore, CheckSpace: nilSpaceCheckFunc, Collector: nilGarbageCollector, Now: time.Now})
 
 			body := url.Values{"passphrase": {tt.passphrase}}.Encode()
 			req := httptest.NewRequest(tt.method, tt.route, strings.NewReader(body))
 			if tt.method == http.MethodPost {
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			}
+			if loginCookie != nil {
+				req.AddCookie(loginCookie)
 			}
 			rec := httptest.NewRecorder()
 
@@ -458,7 +467,7 @@ func TestProtectedEntryDownloadRequiresPassphraseEveryDownload(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("failed to insert protected entry: %v", err)
 	}
-	s := handlers.New(unauthenticatedAuthenticator{}, &dataStore, nilSpaceCheckFunc, nilGarbageCollector, time.Now)
+	s := handlers.New(handlers.Params{Store: &dataStore, CheckSpace: nilSpaceCheckFunc, Collector: nilGarbageCollector, Now: time.Now})
 
 	{
 		req := httptest.NewRequest(http.MethodPost, "/-PPPPPPPPPP/unlock", strings.NewReader("passphrase=correct+horse+battery+staple"))

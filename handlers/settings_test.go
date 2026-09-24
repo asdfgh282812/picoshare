@@ -109,7 +109,8 @@ func TestSettingsPut(t *testing.T) {
 	} {
 		t.Run(tt.description, func(t *testing.T) {
 			dataStore := test_sqlite.New(t)
-			s := handlers.New(mockAuthenticator{}, &dataStore, nilSpaceCheckFunc, nilGarbageCollector, time.Now)
+			loginCookie := mustLoginAsAdmin(t, &dataStore, mustParseTime("2023-01-01T00:00:00Z"))
+			s := handlers.New(handlers.Params{Store: &dataStore, CheckSpace: nilSpaceCheckFunc, Collector: nilGarbageCollector, Now: time.Now})
 
 			req := httptest.NewRequest(
 				http.MethodPut,
@@ -117,6 +118,7 @@ func TestSettingsPut(t *testing.T) {
 				strings.NewReader(tt.payload),
 			)
 			req.Header.Add("Content-Type", "text/json")
+			req.AddCookie(loginCookie)
 
 			rec := httptest.NewRecorder()
 			s.Router().ServeHTTP(rec, req)

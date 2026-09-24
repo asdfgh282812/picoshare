@@ -66,13 +66,16 @@
 {{ end }}
 
 {{ define "content" }}
-  <h1 class="h1">Files</h1>
+  <h1 class="h1">{{ .Title }}</h1>
 
   <div class="table-responsive">
     <table class="table">
       <thead>
         <tr>
           <th>Filename</th>
+          {{ if .ShowOwner }}
+            <th>Owner</th>
+          {{ end }}
           <th>Note</th>
           <th>Size</th>
           <th>Uploaded</th>
@@ -86,6 +89,15 @@
             <td class="align-middle">
               <a href="/-{{ .ID }}">{{ .Filename }}</a>
             </td>
+            {{ if $.ShowOwner }}
+              <td class="align-middle">
+                {{ if .OwnerUsername.String }}
+                  {{ .OwnerUsername.String }}
+                {{ else }}
+                  <span class="text-muted">Unowned</span>
+                {{ end }}
+              </td>
+            {{ end }}
             <td class="align-middle">
               {{ if .Note.Value }}
                 <div class="tooltip">

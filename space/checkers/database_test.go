@@ -7,6 +7,7 @@ import (
 
 	"github.com/mtlynch/picoshare/picoshare"
 	"github.com/mtlynch/picoshare/space/checkers"
+	"github.com/mtlynch/picoshare/store"
 )
 
 type mockDatabaseReader struct {
@@ -14,7 +15,7 @@ type mockDatabaseReader struct {
 	err             error
 }
 
-func (r mockDatabaseReader) GetEntriesMetadata() ([]picoshare.UploadMetadata, error) {
+func (r mockDatabaseReader) GetEntriesMetadata(...store.ReadEntriesOption) ([]picoshare.UploadMetadata, error) {
 	return r.metadataEntries, r.err
 }
 

@@ -32,7 +32,7 @@
           </ul>
         {{ end }}
         <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-          {{ if .IsAuthenticated }}
+          {{ if .IsAdmin }}
             <li class="nav-item dropdown">
               <a
                 class="nav-link dropdown-toggle"
@@ -45,6 +45,11 @@
               </a>
               <ul class="dropdown-menu dropdown-menu-end">
                 <li>
+                  <a class="dropdown-item" role="menuitem" href="/files/all"
+                    >All Files</a
+                  >
+                </li>
+                <li>
                   <a class="dropdown-item" role="menuitem" href="/information"
                     >Information</a
                   >
@@ -54,6 +59,21 @@
                     >Settings</a
                   >
                 </li>
+              </ul>
+            </li>
+          {{ end }}
+          {{ if .IsAuthenticated }}
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link dropdown-toggle"
+                href="#"
+                role="menuitem"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                {{ .Username }}
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end">
                 <li>
                   <button
                     id="navbar-log-out"

@@ -19,17 +19,20 @@ var nilGarbageCollector *garbagecollect.Collector
 
 func TestDeleteExistingFile(t *testing.T) {
 	dataStore := test_sqlite.New(t)
+	now := mustParseTime("2023-01-01T00:00:00Z")
+	loginCookie := mustLoginAsAdmin(t, &dataStore, now)
 	fileContents := "dummy data"
 	dataStore.InsertEntry(strings.NewReader(fileContents),
 		picoshare.UploadMetadata{
 			ID:       picoshare.MustCreateEntryID("hR87apiUCj"),
-			Uploaded: mustParseTime("2023-01-01T00:00:00Z"),
+			Uploaded: now,
 			Expires:  mustParseExpirationTime("2024-01-01T00:00:00Z"),
 			Size:     mustParseFileSize(len(fileContents)),
 		})
-	s := handlers.New(mockAuthenticator{}, &dataStore, nilSpaceCheckFunc, nilGarbageCollector, time.Now)
+	s := handlers.New(handlers.Params{Store: &dataStore, CheckSpace: nilSpaceCheckFunc, Collector: nilGarbageCollector, Now: time.Now})
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/entry/hR87apiUCj", nil)
+	req.AddCookie(loginCookie)
 
 	rec := httptest.NewRecorder()
 	s.Router().ServeHTTP(rec, req)
@@ -48,32 +51,39 @@ func TestDeleteExistingFile(t *testing.T) {
 
 func TestDeleteNonExistentFile(t *testing.T) {
 	dataStore := test_sqlite.New(t)
-	s := handlers.New(mockAuthenticator{}, &dataStore, nilSpaceCheckFunc, nilGarbageCollector, time.Now)
+	now := mustParseTime("2023-01-01T00:00:00Z")
+	loginCookie := mustLoginAsAdmin(t, &dataStore, now)
+	s := handlers.New(handlers.Params{Store: &dataStore, CheckSpace: nilSpaceCheckFunc, Collector: nilGarbageCollector, Now: time.Now})
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/entry/hR87apiUCj", nil)
+	req.AddCookie(loginCookie)
 
 	rec := httptest.NewRecorder()
 	s.Router().ServeHTTP(rec, req)
 	res := rec.Result()
 
-	// File doesn't exist, but there's no error for deleting a non-existent file.
-	if status := res.StatusCode; status != http.StatusOK {
+	// A missing entry gets 404, the same response as an entry that exists but
+	// belongs to someone else, so a download link's existence isn't
+	// distinguishable from a stranger's ID guess.
+	if status := res.StatusCode; status != http.StatusNotFound {
 		t.Fatalf("DELETE /api/entry returned wrong status code: got %v want %v",
-			status, http.StatusOK)
+			status, http.StatusNotFound)
 	}
 }
 
 func TestDeleteInvalidEntryID(t *testing.T) {
 	dataStore := test_sqlite.New(t)
-	s := handlers.New(mockAuthenticator{}, &dataStore, nilSpaceCheckFunc, nilGarbageCollector, time.Now)
+	now := mustParseTime("2023-01-01T00:00:00Z")
+	loginCookie := mustLoginAsAdmin(t, &dataStore, now)
+	s := handlers.New(handlers.Params{Store: &dataStore, CheckSpace: nilSpaceCheckFunc, Collector: nilGarbageCollector, Now: time.Now})
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/entry/invalid-entry-id", nil)
+	req.AddCookie(loginCookie)
 
 	rec := httptest.NewRecorder()
 	s.Router().ServeHTTP(rec, req)
 	res := rec.Result()
 
-	// File doesn't exist, but there's no error for deleting a non-existent file.
 	if status := res.StatusCode; status != http.StatusBadRequest {
 		t.Fatalf("DELETE /api/entry returned wrong status code: got %v want %v",
 			status, http.StatusBadRequest)

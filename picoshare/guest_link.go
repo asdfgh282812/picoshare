@@ -11,8 +11,11 @@ type (
 	GuestUploadCountLimit   *int
 
 	GuestLink struct {
-		ID              GuestLinkID
-		Label           GuestLinkLabel
+		ID    GuestLinkID
+		Label GuestLinkLabel
+		// OwnerID is the user who created the guest link. It's empty for guest
+		// links created before PicoShare supported multiple users.
+		OwnerID         UserID
 		Created         time.Time
 		UrlExpires      ExpirationTime
 		MaxFileLifetime FileLifetime

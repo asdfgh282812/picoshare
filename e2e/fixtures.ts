@@ -121,8 +121,6 @@ export const test = base.extend({
         PORT: String(port),
         LITESTREAM_BUCKET: "",
         PS_BEHIND_PROXY: "",
-        PS_SHARED_SECRET: "dummypass",
-        PS_SHARED_SECRET_FILE: "",
         TZ: "UTC",
       },
       stdio: "pipe",

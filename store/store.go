@@ -23,3 +23,27 @@ type GuestLinkNotFoundError struct {
 func (f GuestLinkNotFoundError) Error() string {
 	return fmt.Sprintf("Could not find guest link with ID %v", f.ID)
 }
+
+// UserNotFoundError occurs when no user exists with the given ID.
+type UserNotFoundError struct {
+	ID picoshare.UserID
+}
+
+func (f UserNotFoundError) Error() string {
+	return fmt.Sprintf("Could not find user with ID %v", f.ID)
+}
+
+// SessionNotFoundError occurs when no active session matches a given token.
+type SessionNotFoundError struct{}
+
+func (f SessionNotFoundError) Error() string {
+	return "Could not find an active session for the given token"
+}
+
+// LastAdminError occurs when an operation would leave PicoShare with no
+// administrators.
+type LastAdminError struct{}
+
+func (f LastAdminError) Error() string {
+	return "Cannot remove the last administrator"
+}

@@ -22,6 +22,10 @@ func (s Store) Purge() error {
 		return err
 	}
 
+	if err := s.deleteExpiredSessions(); err != nil {
+		return err
+	}
+
 	if err := s.reclaimFreePages(); err != nil {
 		return err
 	}

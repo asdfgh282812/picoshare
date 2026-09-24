@@ -1,0 +1,201 @@
+{{ define "script-tags" }}
+  <script type="module" nonce="{{ .CspNonce }}">
+    import { testConnection, saveSetup } from "/js/controllers/setup.js";
+    import { showElement, hideElement } from "/js/lib/bulma.js";
+    import { enableElement, disableElement } from "/js/lib/html.js";
+
+    const form = document.getElementById("setup-form");
+    const errorContainer = document.getElementById("error");
+    const successContainer = document.getElementById("success");
+    const testBtn = document.getElementById("test-connection-btn");
+    const saveBtn = document.getElementById("save-btn");
+
+    function readSettings() {
+      return {
+        setupToken: document.getElementById("setup-token").value,
+        issuerUrl: document.getElementById("issuer-url").value,
+        expectedIssuer: document.getElementById("expected-issuer").value,
+        clientId: document.getElementById("client-id").value,
+        clientSecret: document.getElementById("client-secret").value,
+        redirectUrl: document.getElementById("redirect-url").value,
+        caCertPem: document.getElementById("ca-cert-pem").value,
+      };
+    }
+
+    function withButtonsDisabled(fn) {
+      hideElement(errorContainer);
+      hideElement(successContainer);
+      disableElement(testBtn);
+      disableElement(saveBtn);
+      return fn().finally(() => {
+        enableElement(testBtn);
+        enableElement(saveBtn);
+      });
+    }
+
+    testBtn.addEventListener("click", () => {
+      withButtonsDisabled(() => testConnection(readSettings()))
+        .then(() => {
+          document.getElementById("success-message").innerText =
+            "Connection succeeded.";
+          showElement(successContainer);
+        })
+        .catch((error) => {
+          document.getElementById("error-message").innerText = error;
+          showElement(errorContainer);
+        });
+    });
+
+    form.addEventListener("submit", (evt) => {
+      evt.preventDefault();
+      withButtonsDisabled(() => saveSetup(readSettings()))
+        .then(() => {
+          document.location = "/oidc/login";
+        })
+        .catch((error) => {
+          document.getElementById("error-message").innerText = error;
+          showElement(errorContainer);
+        });
+    });
+
+    document
+      .querySelector("#error .btn-close")
+      .addEventListener("click", () => {
+        hideElement(errorContainer);
+      });
+  </script>
+{{ end }}
+
+{{ define "content" }}
+  <h1 class="h1">Set Up Single Sign-On</h1>
+
+  <p>
+    PicoShare only offers OpenID Connect single sign-on, such as
+    <a
+      href="https://kb.synology.com/en-uk/DSM/tutorial/set_up_oidc_for_dsm_in_sso_server"
+      >Synology SSO Server</a
+    >. Register PicoShare as an application in your identity provider first,
+    using the redirect URL below, then paste its details here.
+  </p>
+
+  <p>
+    Find the setup token in PicoShare's server log (search for "setup token").
+  </p>
+
+  <form id="setup-form">
+    <fieldset class="border rounded p-3 mb-4">
+      <legend class="float-none w-auto px-2 fs-6 mb-0">
+        Identity Provider
+      </legend>
+
+      <div class="mb-3">
+        <label class="form-label" for="setup-token">Setup token</label>
+        <input
+          class="form-control"
+          id="setup-token"
+          type="text"
+          required
+          autofocus
+        />
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="issuer-url">Issuer URL</label>
+        <input
+          class="form-control"
+          id="issuer-url"
+          type="url"
+          required
+          placeholder="https://nas.example.com/webman/sso"
+        />
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="expected-issuer">
+          Expected issuer (optional)
+        </label>
+        <input class="form-control" id="expected-issuer" type="text" />
+        <div class="form-text">
+          Only needed if a reverse proxy makes the issuer URL above unreachable
+          under its own name.
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="client-id">Client ID</label>
+        <input class="form-control" id="client-id" type="text" required />
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="client-secret">Client secret</label>
+        <input
+          class="form-control"
+          id="client-secret"
+          type="password"
+          required
+        />
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="redirect-url">Redirect URL</label>
+        <input
+          class="form-control"
+          id="redirect-url"
+          type="url"
+          required
+          value="{{ .RedirectURL }}"
+        />
+        <div class="form-text">
+          Register this exact URL as the callback URL in your identity provider.
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="ca-cert-pem">
+          CA certificate (optional)
+        </label>
+        <textarea
+          class="form-control"
+          id="ca-cert-pem"
+          rows="4"
+          placeholder="-----BEGIN CERTIFICATE-----"
+        ></textarea>
+        <div class="form-text">
+          Only needed if your identity provider uses a self-signed certificate.
+        </div>
+      </div>
+    </fieldset>
+
+    <div>
+      <button
+        id="test-connection-btn"
+        class="btn btn-secondary me-2"
+        type="button"
+      >
+        Test Connection
+      </button>
+      <button id="save-btn" class="btn btn-primary" type="submit">
+        Save and Log In
+      </button>
+    </div>
+  </form>
+
+  <div id="success" class="d-none my-3">
+    <div class="alert alert-success" role="alert">
+      <div id="success-message">Placeholder success.</div>
+    </div>
+  </div>
+
+  <div id="error" class="d-none my-3">
+    <div
+      class="alert alert-danger d-flex justify-content-between align-items-start"
+      role="alert"
+    >
+      <div>
+        <strong>Error</strong>
+        <div id="error-message" class="mt-1">Placeholder error.</div>
+      </div>
+      <button class="btn-close" type="button" aria-label="Close"></button>
+    </div>
+  </div>
+{{ end }}

@@ -35,7 +35,9 @@ func (s Server) guestLinksPost() http.HandlerFunc {
 			return
 		}
 
+		user, _ := currentUser(r.Context())
 		gl.ID = generateGuestLinkID()
+		gl.OwnerID = user.ID
 		gl.Created = s.now()
 
 		if err := s.store.InsertGuestLink(gl); err != nil {
@@ -57,6 +59,10 @@ func (s Server) guestLinksDelete() http.HandlerFunc {
 			return
 		}
 
+		if _, ok := s.manageableGuestLink(w, r, id); !ok {
+			return
+		}
+
 		if err := s.store.DeleteGuestLink(id); err != nil {
 			log.Printf("failed to delete guest link: %v", err)
 			http.Error(w, fmt.Sprintf("Failed to delete guest link: %v", err), http.StatusInternalServerError)
@@ -74,9 +80,7 @@ func (s *Server) guestLinksEnableDisable() http.HandlerFunc {
 			return
 		}
 
-		if _, err := s.store.GetGuestLink(id); err != nil {
-			log.Printf("failed to get guest link ID %s: %v", mux.Vars(r)["id"], err)
-			http.Error(w, fmt.Sprintf("Guest link with ID %s not found: %v", mux.Vars(r)["id"], err), http.StatusNotFound)
+		if _, ok := s.manageableGuestLink(w, r, id); !ok {
 			return
 		}
 
