@@ -47,7 +47,7 @@ func main() {
 
 	spaceChecker := space.NewChecker(*dbPath, &store)
 
-	collector := garbagecollect.NewCollector(store)
+	collector := garbagecollect.NewCollector(store, time.Now)
 	gc := garbagecollect.NewScheduler(&collector, 7*time.Hour)
 	gc.StartAsync()
 

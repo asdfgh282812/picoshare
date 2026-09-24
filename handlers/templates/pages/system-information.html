@@ -40,14 +40,42 @@
 
 {{ define "script-tags" }}
   <script type="module" nonce="{{ .CspNonce }}">
-    import { toggleShowElement } from "/js/lib/bulma.js";
+    import { cleanUpDatabase } from "/js/controllers/maintenance.js";
+    import {
+      toggleShowElement,
+      showElement,
+      hideElement,
+    } from "/js/lib/bulma.js";
+    import { enableElement, disableElement } from "/js/lib/html.js";
 
     const sizeDeltaNotification = document.querySelector(".notification");
+    const cleanupBtn = document.getElementById("cleanup-btn");
+    const errorContainer = document.getElementById("error");
 
     document
       .getElementById("file-size-information")
       .addEventListener("click", () => {
         toggleShowElement(sizeDeltaNotification);
+      });
+
+    cleanupBtn.addEventListener("click", () => {
+      hideElement(errorContainer);
+      disableElement(cleanupBtn);
+      cleanUpDatabase()
+        .then(() => {
+          window.location.reload();
+        })
+        .catch((error) => {
+          document.getElementById("error-message").innerText = error;
+          showElement(errorContainer);
+          enableElement(cleanupBtn);
+        });
+    });
+
+    document
+      .querySelector("#error .btn-close")
+      .addEventListener("click", () => {
+        hideElement(errorContainer);
       });
   </script>
 {{ end }}
@@ -87,6 +115,10 @@
               <i class="fa-solid fa-circle-info"></i> </span
           ></a>
         </li>
+        <li>
+          <strong>Reclaimable space</strong>:
+          {{ formatDiskUsage .ReclaimableBytes }}
+        </li>
       </ul>
     </li>
   </ul>
@@ -97,14 +129,45 @@
       PicoShare's file uploads.
     </p>
     <p>
-      After files are deleted, PicoShare retains the space and reuses it to
-      store future uploads. To manually shrink PicoShare's database files down
-      to the total size of the upload data, see the
-      <a
-        href="https://github.com/mtlynch/picoshare?tab=readme-ov-file#reclaiming-reserved-database-space"
-        >README</a
-      >.
+      After files are deleted, PicoShare temporarily retains the space as
+      reclaimable space. PicoShare returns reclaimable space to the filesystem
+      during database cleanup, which runs at startup and every few hours, or
+      when you select "Clean up now."
     </p>
+  </div>
+
+  <h2>Database Cleanup</h2>
+  <p>
+    Cleanup deletes expired files and old download history and returns
+    reclaimable space to the filesystem.
+  </p>
+  <p>
+    <strong>Last cleanup</strong>:
+    {{ if .LastCleanupTime.IsZero }}
+      Not yet run
+    {{ else }}
+      {{ .LastCleanupTime.Format "2006-01-02 15:04:05 -0700" }}
+      {{ if .LastCleanupFailed }}
+        <span class="badge text-bg-danger">Failed</span>
+      {{ end }}
+    {{ end }}
+  </p>
+  <button id="cleanup-btn" class="btn btn-primary mb-4" type="button">
+    <i class="fa-solid fa-broom me-2"></i>
+    Clean up now
+  </button>
+
+  <div id="error" class="d-none my-3">
+    <div
+      class="alert alert-danger d-flex justify-content-between align-items-start"
+      role="alert"
+    >
+      <div>
+        <strong>Error</strong>
+        <div id="error-message" class="mt-1">Placeholder error.</div>
+      </div>
+      <button class="btn-close" type="button" aria-label="Close"></button>
+    </div>
   </div>
 
   <h2>PicoShare Version</h2>

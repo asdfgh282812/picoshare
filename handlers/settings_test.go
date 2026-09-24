@@ -23,22 +23,64 @@ func TestSettingsPut(t *testing.T) {
 		{
 			description: "valid request for 7-day expiration",
 			payload: `{
-					"defaultExpirationDays": 7
+					"defaultExpirationDays": 7,
+					"keepDownloadHistoryForever": true
 				}`,
 			settings: picoshare.Settings{
-				DefaultFileLifetime: picoshare.NewFileLifetimeInDays(7),
+				DefaultFileLifetime:      picoshare.NewFileLifetimeInDays(7),
+				DownloadHistoryRetention: picoshare.KeepDownloadHistoryForever,
 			},
 			status: http.StatusOK,
 		},
 		{
 			description: "valid request for never-expiring files",
 			payload: `{
-					"defaultNeverExpire": true
+					"defaultNeverExpire": true,
+					"keepDownloadHistoryForever": true
 				}`,
 			settings: picoshare.Settings{
-				DefaultFileLifetime: picoshare.FileLifetimeInfinite,
+				DefaultFileLifetime:      picoshare.FileLifetimeInfinite,
+				DownloadHistoryRetention: picoshare.KeepDownloadHistoryForever,
 			},
 			status: http.StatusOK,
+		},
+		{
+			description: "valid request for 90-day download history retention",
+			payload: `{
+					"defaultExpirationDays": 7,
+					"downloadHistoryRetentionDays": 90
+				}`,
+			settings: picoshare.Settings{
+				DefaultFileLifetime:      picoshare.NewFileLifetimeInDays(7),
+				DownloadHistoryRetention: mustCreateDownloadHistoryRetention(90),
+			},
+			status: http.StatusOK,
+		},
+		{
+			description: "rejects download history retention of zero days",
+			payload: `{
+					"defaultExpirationDays": 7,
+					"downloadHistoryRetentionDays": 0
+				}`,
+			settings: picoshare.Settings{},
+			status:   http.StatusBadRequest,
+		},
+		{
+			description: "rejects download history retention beyond the maximum",
+			payload: `{
+					"defaultExpirationDays": 7,
+					"downloadHistoryRetentionDays": 3651
+				}`,
+			settings: picoshare.Settings{},
+			status:   http.StatusBadRequest,
+		},
+		{
+			description: "rejects request with missing download history retention",
+			payload: `{
+					"defaultExpirationDays": 7
+				}`,
+			settings: picoshare.Settings{},
+			status:   http.StatusBadRequest,
 		},
 		{
 			description: "rejects invalid expiration days (too low)",
@@ -99,4 +141,12 @@ func TestSettingsPut(t *testing.T) {
 			}
 		})
 	}
+}
+
+func mustCreateDownloadHistoryRetention(days uint16) picoshare.DownloadHistoryRetention {
+	r, err := picoshare.NewDownloadHistoryRetentionInDays(days)
+	if err != nil {
+		panic(err)
+	}
+	return r
 }

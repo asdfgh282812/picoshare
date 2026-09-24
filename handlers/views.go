@@ -647,16 +647,30 @@ func (s Server) settingsGet() http.HandlerFunc {
 			}
 		}
 
+		// Suggest a sensible retention period when the user switches from keeping
+		// download history forever.
+		downloadHistoryRetentionDays := uint16(90)
+		keepDownloadHistoryForever := settings.DownloadHistoryRetention.IsForever()
+		if !keepDownloadHistoryForever {
+			downloadHistoryRetentionDays = settings.DownloadHistoryRetention.Days()
+		}
+
 		renderTemplate(w, t, struct {
 			commonProps
-			DefaultExpiration  uint16
-			ExpirationTimeUnit string
-			DefaultNeverExpire bool
+			DefaultExpiration               uint16
+			ExpirationTimeUnit              string
+			DefaultNeverExpire              bool
+			DownloadHistoryRetentionDays    uint16
+			MaxDownloadHistoryRetentionDays uint16
+			KeepDownloadHistoryForever      bool
 		}{
-			commonProps:        makeCommonProps("PicoShare - Settings", r.Context()),
-			DefaultExpiration:  defaultExpiration,
-			ExpirationTimeUnit: expirationTimeUnit,
-			DefaultNeverExpire: defaultNeverExpire,
+			commonProps:                     makeCommonProps("PicoShare - Settings", r.Context()),
+			DefaultExpiration:               defaultExpiration,
+			ExpirationTimeUnit:              expirationTimeUnit,
+			DefaultNeverExpire:              defaultNeverExpire,
+			DownloadHistoryRetentionDays:    downloadHistoryRetentionDays,
+			MaxDownloadHistoryRetentionDays: picoshare.MaxDownloadHistoryRetentionDays,
+			KeepDownloadHistoryForever:      keepDownloadHistoryForever,
 		})
 	}
 }
@@ -678,12 +692,24 @@ func (s Server) systemInformationGet() http.HandlerFunc {
 			return
 		}
 
+		reclaimableBytes, err := s.store.ReclaimableBytes()
+		if err != nil {
+			log.Printf("error measuring reclaimable database space: %v", err)
+			http.Error(w, "Failed to measure reclaimable database space", http.StatusInternalServerError)
+			return
+		}
+
+		lastCleanup := s.collector.LastRun()
+
 		renderTemplate(w, t, struct {
 			commonProps
 			TotalServingBytes uint64
 			DatabaseFileBytes uint64
+			ReclaimableBytes  uint64
 			UsedBytes         uint64
 			TotalBytes        uint64
+			LastCleanupTime   time.Time
+			LastCleanupFailed bool
 			BuildTime         time.Time
 			Version           string
 			Revision          string
@@ -691,8 +717,11 @@ func (s Server) systemInformationGet() http.HandlerFunc {
 			commonProps:       makeCommonProps("PicoShare - System Information", r.Context()),
 			TotalServingBytes: spaceUsage.TotalServingBytes,
 			DatabaseFileBytes: spaceUsage.DatabaseFileSize,
+			ReclaimableBytes:  reclaimableBytes,
 			UsedBytes:         spaceUsage.FileSystemUsedBytes,
 			TotalBytes:        spaceUsage.FileSystemTotalBytes,
+			LastCleanupTime:   lastCleanup.Time,
+			LastCleanupFailed: lastCleanup.Err != nil,
 			BuildTime:         build.Time(),
 			Version:           build.Version(),
 			Revision:          build.Revision(),
