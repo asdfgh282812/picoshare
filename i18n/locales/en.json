@@ -77,6 +77,7 @@
   "upload.processing": "File uploaded! Processing...",
   "upload.complete": "Upload complete!",
   "upload.uploadAnother": "Upload Another",
+  "upload.maxLifetimeHint": "Your administrator limits how long you may keep files:",
 
   "js.progressUploading": "PicoShare ↑ %s",
   "js.progressComplete": "PicoShare - Complete",
@@ -111,6 +112,7 @@
   "fileInfo.heading": "File Information",
   "fileInfo.filename": "Filename",
   "fileInfo.links": "Links",
+  "fileInfo.preview": "Preview",
   "fileInfo.size": "Size",
   "fileInfo.expires": "Expires",
   "fileInfo.downloads": "Downloads",
@@ -181,6 +183,9 @@
   "settings.defaultLanguage": "Default Language",
   "settings.defaultLanguageHint": "Applies to visitors who haven't chosen a language.",
   "settings.defaultLanguageAuto": "Match visitor's browser",
+  "settings.maxNonAdminExpiration": "Non-Admin Upload Limit",
+  "settings.maxNonAdminExpirationHint": "Caps how long a non-admin user may keep their own uploaded files. Administrators are exempt.",
+  "settings.noMaxNonAdminExpiration": "No limit",
 
   "setup.heading": "Set Up Single Sign-On",
   "setup.intro": "PicoShare only offers OpenID Connect single sign-on, such as <a href=\"https://kb.synology.com/en-uk/DSM/tutorial/set_up_oidc_for_dsm_in_sso_server\">Synology SSO Server</a>. Register PicoShare as an application in your identity provider first, using the redirect URL below, then paste its details here.",
@@ -239,5 +244,6 @@
 
   "uploadLinks.fullLink": "Full Link",
   "uploadLinks.shortLink": "Shortlink",
+  "uploadLinks.qrCode": "Scan to open on another device",
   "expirationPicker.date": "Expiration date"
 }

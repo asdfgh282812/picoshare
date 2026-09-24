@@ -44,6 +44,12 @@ func (s Server) entryPost() http.HandlerFunc {
 
 		user, _ := currentUser(r.Context())
 
+		if err := s.enforceMaxFileLifetimeForUser(user, expiration); err != nil {
+			log.Printf("expiration exceeds non-admin upload limit: %v", err)
+			http.Error(w, fmt.Sprintf("Invalid expiration: %v", err), http.StatusBadRequest)
+			return
+		}
+
 		// We're intentionally not limiting the size of the request because we
 		// assume that the uploading user is trusted, so they can upload files of
 		// any size they want.
@@ -81,6 +87,13 @@ func (s Server) entryPut() http.HandlerFunc {
 		if err != nil {
 			log.Printf("error parsing entry edit request: %v", err)
 			http.Error(w, fmt.Sprintf("Bad request: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		user, _ := currentUser(r.Context())
+		if err := s.enforceMaxFileLifetimeForUser(user, metadata.Expires); err != nil {
+			log.Printf("expiration exceeds non-admin upload limit: %v", err)
+			http.Error(w, fmt.Sprintf("Invalid expiration: %v", err), http.StatusBadRequest)
 			return
 		}
 
@@ -322,6 +335,32 @@ func (s Server) parseGuestExpirationFromRequest(r *http.Request, gl picoshare.Gu
 	}
 
 	return requestedExpiration, nil
+}
+
+// enforceMaxFileLifetimeForUser rejects expiration if it exceeds the
+// non-admin upload lifetime cap an administrator configured in settings.
+// Administrators are exempt, matching the same distinction
+// canBypassPassphrase draws between owners/admins and everyone else.
+func (s Server) enforceMaxFileLifetimeForUser(user picoshare.User, expiration picoshare.ExpirationTime) error {
+	if user.IsAdmin {
+		return nil
+	}
+
+	settings, err := s.store.ReadSettings()
+	if err != nil {
+		return fmt.Errorf("failed to read settings: %w", err)
+	}
+
+	if settings.MaxNonAdminFileLifetime.Equal(picoshare.FileLifetimeInfinite) {
+		return nil
+	}
+
+	maxPermittedExpiration := settings.MaxNonAdminFileLifetime.ExpirationFromTime(s.now())
+	if expiration == picoshare.NeverExpire || expiration.Time().After(maxPermittedExpiration.Time()) {
+		return fmt.Errorf("expiration time of %v exceeds the maximum permitted for non-admin users: %v", expiration, maxPermittedExpiration)
+	}
+
+	return nil
 }
 
 // mibToBytes converts an amount in MiB to an amount in bytes.

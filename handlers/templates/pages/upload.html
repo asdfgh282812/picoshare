@@ -342,6 +342,7 @@
 {{ define "custom-elements" }}
   {{ template "expiration-picker.html" . }}
   {{ template "upload-link-box.html" . }}
+  {{ template "qr-code-box.html" . }}
   {{ template "upload-links.html" . }}
 {{ end }}
 
@@ -392,7 +393,14 @@
             <expiration-picker
               id="expiration-picker"
               class="dependent-field d-none"
+              max="{{ formatExpiration .MaxExpirationDate }}"
             />
+            {{ if .HasMaxFileLifetimeCap }}
+              <div class="form-text">
+                {{ .L.T "upload.maxLifetimeHint" }}
+                {{ .MaxFileLifetimeName }}
+              </div>
+            {{ end }}
           </div>
         {{ end }}
 
