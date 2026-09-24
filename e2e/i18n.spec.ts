@@ -5,20 +5,23 @@ test("switches the interface language from the navbar and it survives a reload",
   page,
 }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "What is PicoShare?" }))
-    .toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "What is PicoShare?" }),
+  ).toBeVisible();
 
   await page.getByRole("menuitem", { name: "Language" }).hover();
   await page.getByRole("menuitem", { name: "繁體中文" }).click();
 
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-TW");
-  await expect(page.getByRole("heading", { name: "PicoShare 是什麼？" }))
-    .toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "PicoShare 是什麼？" }),
+  ).toBeVisible();
 
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-TW");
-  await expect(page.getByRole("heading", { name: "PicoShare 是什麼？" }))
-    .toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "PicoShare 是什麼？" }),
+  ).toBeVisible();
 });
 
 test("a logged-in user's language choice follows them across sessions", async ({
@@ -62,6 +65,7 @@ test("the administrator's default language applies to a visitor with no language
   await page.goto("/");
 
   await expect(page.locator("html")).toHaveAttribute("lang", "zh-TW");
-  await expect(page.getByRole("heading", { name: "PicoShare 是什麼？" }))
-    .toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "PicoShare 是什麼？" }),
+  ).toBeVisible();
 });

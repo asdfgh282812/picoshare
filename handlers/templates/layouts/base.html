@@ -17,7 +17,9 @@
                 ? "dark"
                 : "light";
           document.documentElement.setAttribute("data-bs-theme", theme);
-        } catch {}
+        } catch {
+          // Ignore storage/matchMedia errors (e.g., private browsing).
+        }
       })();
     </script>
     <link

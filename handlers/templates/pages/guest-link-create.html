@@ -105,9 +105,7 @@
     </div>
 
     <div class="mb-4">
-      <label class="form-label"
-        >{{ .L.T "guestLinkCreate.filesExpire" }}</label
-      >
+      <label class="form-label">{{ .L.T "guestLinkCreate.filesExpire" }}</label>
       <select id="file-expiration-select" class="form-select">
         {{ $l := .L }}
         {{ range .FileLifetimeOptions }}

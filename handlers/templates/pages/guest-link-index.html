@@ -230,7 +230,9 @@
                   aria-valuemax="100"
                 >
                   <div
-                    class="progress-bar{{ if ge $uploadPct 100 }} bg-danger{{ end }}"
+                    class="progress-bar{{ if ge $uploadPct 100 }}
+                      bg-danger
+                    {{ end }}"
                     style="width: {{ $uploadPct }}%"
                   ></div>
                 </div>

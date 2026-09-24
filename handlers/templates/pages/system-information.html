@@ -172,7 +172,10 @@
 
   <h2>{{ .L.T "systemInfo.version" }}</h2>
   <ul>
-    <li><strong>{{ .L.T "systemInfo.versionLabel" }}</strong>: {{ .Version }}</li>
+    <li>
+      <strong>{{ .L.T "systemInfo.versionLabel" }}</strong>:
+      {{ .Version }}
+    </li>
     {{ if .Revision }}
       <li>
         <strong>{{ .L.T "systemInfo.revision" }}</strong>:

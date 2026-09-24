@@ -79,7 +79,9 @@
               {{ $currentLang := .Lang }}
               <li>
                 <button
-                  class="dropdown-item navbar-language-option{{ if eq $currentLang "en" }} active{{ end }}"
+                  class="dropdown-item navbar-language-option{{ if eq $currentLang "en" }}
+                    active
+                  {{ end }}"
                   role="menuitem"
                   type="button"
                   data-lang="en"
@@ -89,7 +91,9 @@
               </li>
               <li>
                 <button
-                  class="dropdown-item navbar-language-option{{ if eq $currentLang "zh-TW" }} active{{ end }}"
+                  class="dropdown-item navbar-language-option{{ if eq $currentLang "zh-TW" }}
+                    active
+                  {{ end }}"
                   role="menuitem"
                   type="button"
                   data-lang="zh-TW"
